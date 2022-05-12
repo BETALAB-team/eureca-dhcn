@@ -68,6 +68,8 @@ class Network:
         # These two are use to include the Node and Branch objects
         self._nodes_object_dict = {}
         self._branches_object_dict = {}
+        # Needed to vectorize hydraulic resistances
+        self._branches_object_ordered_list = []
 
         # Creation of the nodes objects... THIS MUST BE DONE BEFORE THE CREATION OF BRANCHES
         self._create_nodes()
@@ -137,6 +139,7 @@ class Network:
                 self._branches_object_dict[branch["id"]]._previous_temp = branch[
                     "starting temperature [°C]"
                 ]
+            self._branches_object_ordered_list.append(branch)
 
     def _couple_nodes_to_nodes(self):
         """
@@ -291,3 +294,9 @@ class Network:
                 "pipe diameter [m]": str(branch["pipe_d [m]"]),
             }
         return cls(nodes_dict=nodes_dict, branches_dict=branches_dict)
+
+    def calc_hydraulic_resistance_vector(self):
+        self.hydraulic_resistances = [
+            branch.get_hydraulic_resistance()
+            for branch in self._branches_object_ordered_lis
+        ]
