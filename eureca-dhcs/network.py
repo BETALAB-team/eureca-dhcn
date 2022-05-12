@@ -1,7 +1,8 @@
 class Network:
-    def __init__(self, nodes_file: dict, branches_file: dict):
+    def __init__(self, nodes_dict: dict, branches_dict: dict):
         """
-        Creates a district water network starting from nodes and branches dictionary
+        Creates a district water network starting from nodes and branches dictionaries
+        See the example below
         kwarg passed to each node and branch are passed to the Node and Branch constructor
         Parameters
         ----------
@@ -44,6 +45,12 @@ class Network:
         None.
 
         """
+        # This two contains only the dictionary, with str and integer
+        self._nodes_json_dict = nodes_dict
+        self._branch_json_dict = branches_dict
+        # These two are use to include the Node and Branch objects
+        self._nodes_json_dict
+        self._nodes_json_dict
 
     @classmethod
     def from_shapefiles(self, nodes_file: str, branches_file: str):
