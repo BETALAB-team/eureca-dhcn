@@ -49,8 +49,8 @@ class Network:
         self._nodes_json_dict = nodes_dict
         self._branch_json_dict = branches_dict
         # These two are use to include the Node and Branch objects
-        self._nodes_json_dict
-        self._nodes_json_dict
+        self._nodes_json_dict = {}
+        self._nodes_json_dict = {}
 
     @classmethod
     def from_shapefiles(self, nodes_file: str, branches_file: str):
