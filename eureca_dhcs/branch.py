@@ -41,6 +41,10 @@ class Branch:
                 supply_node_obj = nodes_objects_dict[supply_node]
                 demand_node_obj = nodes_objects_dict[demand_node]
                 self._pipe_len = supply_node_obj.distance_from_node(demand_node_obj)
+            except KeyError:
+                raise KeyError(
+                    f"Branch {idx}. Supply/demand node key not found: {supply_node}, {demand_node}"
+                )
             except TypeError:
                 raise NameError(
                     f"Branch {idx}. If pipe lenght not passed, the dictionary of the nodes objects must be passed to calculate the pipe lenght"
@@ -74,7 +78,8 @@ class Branch:
         except ValueError:
             raise TypeError(f"Branch class, idx must be a str: {value}")
         if value in Branch._idx_list:
-            raise DuplicateBranch("Duplicate branch id: {value}")
+            print(Branch._idx_list)
+            raise DuplicateBranch(f"Duplicate branch id: {value}")
         self.__idx = value
 
     @property

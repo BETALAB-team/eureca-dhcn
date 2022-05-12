@@ -135,11 +135,19 @@ class TestNetwork:
         # Standard Node creation
 
         with open(
-            os.path.join("eureca_dhcs", "network_config", "nodes.json"), "r"
+            os.path.join("eureca_dhcs", "test", "network_config", "nodes.json"), "r"
         ) as outfile:
             nodes = json.load(outfile)
         with open(
-            os.path.join("eureca_dhcs", "network_config", "branches.json"), "r"
+            os.path.join("eureca_dhcs", "test", "network_config", "branches.json"), "r"
         ) as outfile:
             branches = json.load(outfile)
         Network(nodes_dict=nodes, branches_dict=branches)
+
+    def test_network_from_shape(self):
+        # Standard Node creation
+
+        path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "lines.shp")
+        path_nodes = os.path.join("eureca_dhcs", "test", "input_tests", "nodes.shp")
+
+        Network.from_shapefiles(path_nodes, path_lines)

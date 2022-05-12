@@ -76,7 +76,8 @@ class Node:
         except ValueError:
             raise TypeError(f"Node class, idx must be a str: {value}")
         if value in Node._idx_list:
-            raise DuplicateNode("Duplicate node id: {value}")
+            print(Node._idx_list)
+            raise DuplicateNode(f"Duplicate node id: {value}")
         self.__idx = value
 
     @property
@@ -90,7 +91,7 @@ class Node:
         except ValueError:
             raise TypeError(f"Node {self._idx}, node type must be a str: {value}")
         if value not in ["supply", "disp", "demand"]:
-            raise WrongNodeType("Node {self._idx}, wrong node type: {value}")
+            raise WrongNodeType(f"Node {self._idx}, wrong node type: {value}")
         self.__node_type = value
 
     def distance_from_node(self, node_2):

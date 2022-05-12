@@ -90,7 +90,7 @@ class Network:
         for idx, node in self._nodes_json_dict.items():
             self._nodes_object_dict[node["id"]] = Node(
                 idx=node["id"],
-                node_type=node["node_type"],
+                node_type=node["node type"],
                 supply_nodes=node["supply nodes"],
                 demand_nodes=node["demand nodes"],
                 x=node["x"],
@@ -225,7 +225,7 @@ class Network:
             ] = branch
 
     @classmethod
-    def from_shapefiles(self, nodes_file: str, branches_file: str):
+    def from_shapefiles(cls, nodes_file: str, branches_file: str):
         """
         Creates a district water network starting from GIS nodes and branches shapefile
 
@@ -262,3 +262,32 @@ class Network:
 
         nodes_dict = {}
         branches_dict = {}
+
+        for nodes_df_idx in nodes_df.index:
+            node = nodes_df.loc[nodes_df_idx]
+            nodes_dict[node["id"]] = {
+                "id": str(node["id"]),
+                "node type": str(node["node_type"]),
+                "x": -0.5,
+                "y": 1.0,
+            }
+
+            try:
+                supply_nodes = [str(n) for n in node["supply_nod"].split(";")]
+            except AttributeError:
+                supply_nodes = []
+            nodes_dict[node["id"]]["supply nodes"] = supply_nodes
+            try:
+                demand_nodes = [str(n) for n in node["demand_nod"].split(";")]
+            except AttributeError:
+                demand_nodes = []
+            nodes_dict[node["id"]]["demand nodes"] = demand_nodes
+        for branch_df_idx in branches_df.index:
+            branch = branches_df.loc[branch_df_idx]
+            branches_dict[branch["id"]] = {
+                "id": str(branch["id"]),
+                "supply node": str(branch["supply_nod"]),
+                "demand node": str(branch["demand_nod"]),
+                "pipe diameter [m]": str(branch["pipe_d [m]"]),
+            }
+        return cls(nodes_dict=nodes_dict, branches_dict=branches_dict)
