@@ -6,7 +6,7 @@ __maintainer__ = "Enrico Prataviera"
 
 import math
 
-from exceptions import DuplicateNode, WrongNodeType
+from eureca_dhcs.exceptions import DuplicateNode, WrongNodeType
 
 
 class Node:
@@ -91,7 +91,7 @@ class Node:
             raise TypeError(f"Node {self._idx}, node type must be a str: {value}")
         if value not in ["supply", "disp", "demand"]:
             raise WrongNodeType("Node {self._idx}, wrong node type: {value}")
-        self._node_type = value
+        self.__node_type = value
 
     def distance_from_node(self, node_2):
         """
