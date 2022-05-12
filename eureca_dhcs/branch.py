@@ -105,6 +105,10 @@ class Branch:
             raise TypeError(
                 f"Branch {self._idx}, pipe diameter must be a float: {value}"
             )
+        if value < 0.0:
+            raise ValueError(
+                f"Branch {self._idx}, pipe diameter negative pipe diameter: {value} [m]"
+            )
         if value > 2.0:
             logging.warning(f"Branch {self._idx}, pipe diameter very high: {value} [m]")
         self.__pipe_diameter = value
@@ -119,6 +123,8 @@ class Branch:
             value = float(value)
         except ValueError:
             raise TypeError(f"Branch {self._idx}, pipe lenght must be a float: {value}")
+        if value < 0.0:
+            raise ValueError(f"Branch {self._idx}, lenght negative: {value} [m]")
         self.__pipe_len = value
 
     @property
@@ -130,10 +136,30 @@ class Branch:
         try:
             value = float(value)
         except ValueError:
-            raise TypeError(f"Branch {self._idx}, pipe lenght must be a float: {value}")
+            raise TypeError(
+                f"Branch {self._idx}, pipe roughness must be a float: {value}"
+            )
         if value > 2.0:
             logging.warning(f"Branch {self._idx}, roughness very high: {value} [-]")
         self.__roughness = value
+
+    @property
+    def _previous_temp(self) -> float:
+        return self.__previous_temp
+
+    @_previous_temp.setter
+    def _previous_temp(self, value: float):
+        try:
+            value = float(value)
+        except ValueError:
+            raise TypeError(
+                f"Branch {self._idx}, starting temperature must be a float: {value}"
+            )
+        if value > 200.0:
+            logging.warning(
+                f"Branch {self._idx}, starting temperature very high: {value} [°C]"
+            )
+        self.__previous_temp = value
 
     # # First try flow rate
     # # 0.1 m/s flow rate

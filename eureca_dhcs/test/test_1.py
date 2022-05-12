@@ -9,13 +9,23 @@ __version__ = "0.1"
 __maintainer__ = "Enrico Prataviera"
 
 import os
+import json
+import logging
 
 import pytest
 import numpy as np
 
 from eureca_dhcs.node import Node
 from eureca_dhcs.branch import Branch
+from eureca_dhcs.network import Network
 from eureca_dhcs.exceptions import DuplicateNode, WrongNodeType
+
+
+logging.basicConfig(
+    filename=os.path.join(".", "eureca_dhcs", "test", "test_log.log"),
+    encoding="utf-8",
+    level=logging.DEBUG,
+)
 
 
 class TestNodesBranches:
@@ -27,7 +37,7 @@ class TestNodesBranches:
     def test_node(self):
         # Standard Node creation
         Node(
-            idx="5",
+            idx="80000",
             node_type="disp",
             supply_nodes=["3", "2"],
             demand_nodes=["1"],
@@ -39,7 +49,7 @@ class TestNodesBranches:
         # Standard Node creation
         with pytest.raises(DuplicateNode):
             Node(
-                idx="5",
+                idx="80000",
                 node_type="disp",
                 supply_nodes=["3", "2"],
                 demand_nodes=["1"],
@@ -51,7 +61,7 @@ class TestNodesBranches:
         # Standard Node creation
         with pytest.raises(WrongNodeType):
             Node(
-                idx="8",
+                idx="10000000",
                 node_type=True,
                 supply_nodes=["3", "2"],
                 demand_nodes=["1"],
@@ -63,7 +73,7 @@ class TestNodesBranches:
         # Standard Node creation
         # with pytest.raises(TypeError):
         Node(
-            idx="9",
+            idx="900000",
             node_type="disp",
             supply_nodes=["3", "2"],
             demand_nodes=["1"],
@@ -86,16 +96,16 @@ class TestNodesBranches:
 
     def test_branch_2(self):
         nodes_objects_dict = {
-            "8": Node(
-                idx="8",
+            "800000": Node(
+                idx="800000",
                 node_type="disp",
                 supply_nodes=["3", "2"],
                 demand_nodes=["1"],
                 x=0.5,
                 y=0.8,
             ),
-            "10": Node(
-                idx="10",
+            "100000000000": Node(
+                idx="100000000000",
                 node_type="disp",
                 supply_nodes=["3", "2"],
                 demand_nodes=["1"],
@@ -106,10 +116,30 @@ class TestNodesBranches:
 
         Branch(
             idx="A",
-            supply_node="8",
-            demand_node="10",
+            supply_node="800000",
+            demand_node="100000000000",
             pipe_diameter=0.5,  # [m]
             roughness=0.2,  # [-]
             starting_temp=50.0,  # [°C]
             nodes_objects_dict=nodes_objects_dict,
         )
+
+
+class TestNetwork:
+    """
+    This is a test class for the pytest module.
+    It tests Nodes and Branch class and its property
+    """
+
+    def test_network(self):
+        # Standard Node creation
+
+        with open(
+            os.path.join("eureca_dhcs", "network_config", "nodes.json"), "r"
+        ) as outfile:
+            nodes = json.load(outfile)
+        with open(
+            os.path.join("eureca_dhcs", "network_config", "branches.json"), "r"
+        ) as outfile:
+            branches = json.load(outfile)
+        Network(nodes_dict=nodes, branches_dict=branches)

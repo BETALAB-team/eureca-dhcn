@@ -19,3 +19,7 @@ class WrongNodeType(Exception):
 
 class DuplicateBranch(Exception):
     pass
+
+
+class EmptyNetworkNodes(Exception):
+    pass

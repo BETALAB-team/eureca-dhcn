@@ -56,10 +56,10 @@ class Node:
         self._supply_nodes_list = supply_nodes
         self._demand_nodes_list = demand_nodes
         # The following dict will contain objects of type Branch and Node
-        self._supply_branches = {}
-        self._demand_branches = {}
-        self._supply_nodes = {}
-        self._demand_nodes = {}
+        self._supply_branches_objects = {}
+        self._demand_branches_objects = {}
+        self._supply_nodes_objects = {}
+        self._demand_nodes_objects = {}
 
         Node._idx_list.append(self._idx)
         self._unique_matrix_idx = Node._counter
