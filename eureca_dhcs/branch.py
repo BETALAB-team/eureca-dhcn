@@ -6,7 +6,7 @@ __maintainer__ = "Enrico Prataviera"
 
 import math
 import logging
-from exceptions import DuplicateBranch
+from eureca_dhcs.exceptions import DuplicateBranch
 
 
 class Branch:
@@ -40,7 +40,7 @@ class Branch:
             try:
                 supply_node_obj = nodes_objects_dict[supply_node]
                 demand_node_obj = nodes_objects_dict[demand_node]
-                self._pipe_len = supply_node_obj.distance(demand_node_obj)
+                self._pipe_len = supply_node_obj.distance_from_node(demand_node_obj)
             except TypeError:
                 raise NameError(
                     f"Branch {idx}. If pipe lenght not passed, the dictionary of the nodes objects must be passed to calculate the pipe lenght"
@@ -60,8 +60,8 @@ class Branch:
         # set a unique integer for the incidence matrix
         self._unique_matrix_idx = Branch._counter
         # Other useful properties
-        self._perimeter = self.pipe_diameter * math.pi
-        self._external_area = self.perimeter * self.pipe_len
+        self._perimeter = self._pipe_diameter * math.pi
+        self._external_area = self._perimeter * self._pipe_len
 
     @property
     def _idx(self) -> str:
