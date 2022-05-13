@@ -79,6 +79,8 @@ class Network:
         self._couple_nodes_to_nodes()
         # DO IN ORDER
         self._couple_branches_to_nodes()
+        # function to calc adjacency matrix
+        self._calc_adjacency_matrix()
 
     def _create_nodes(self):
         """
@@ -98,6 +100,7 @@ class Network:
                 x=node["x"],
                 y=node["y"],
             )
+        self._nodes_number = int(len(self._nodes_object_dict.keys()))
 
     def _create_branches(self):
         """
@@ -140,6 +143,7 @@ class Network:
                     "starting temperature [°C]"
                 ]
             self._branches_object_ordered_list.append(branch)
+        self._branches_number = int(len(self._branches_object_dict.keys()))
 
     def _couple_nodes_to_nodes(self):
         """
@@ -227,6 +231,24 @@ class Network:
                 branch_idx
             ] = branch
 
+    def _calc_adjacency_matrix(self):
+        # calc the coupling nodes/branches matrix
+        # Matrix -> n_nodes x n_branches
+        connection_matrix = np.zeros([self._nodes_number, self._branches_number])
+        for branch_id, branch in self._branches_object_dict.items():
+            column = branch._unique_matrix_idx
+            connection_matrix[
+                branch._supply_node_object._unique_matrix_idx, column
+            ] = -1
+            connection_matrix[branch._demand_node_object._unique_matrix_idx, column] = 1
+        self._adjacency_matrix = connection_matrix
+
+    def calc_hydraulic_resistance_vector(self):
+        self.hydraulic_resistances = [
+            branch.get_hydraulic_resistance()
+            for branch in self._branches_object_ordered_lis
+        ]
+
     @classmethod
     def from_shapefiles(cls, nodes_file: str, branches_file: str):
         """
@@ -294,9 +316,3 @@ class Network:
                 "pipe diameter [m]": str(branch["pipe_d [m]"]),
             }
         return cls(nodes_dict=nodes_dict, branches_dict=branches_dict)
-
-    def calc_hydraulic_resistance_vector(self):
-        self.hydraulic_resistances = [
-            branch.get_hydraulic_resistance()
-            for branch in self._branches_object_ordered_lis
-        ]

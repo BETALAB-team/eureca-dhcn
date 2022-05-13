@@ -63,6 +63,7 @@ class Branch:
             self._previous_temp = float(starting_temp)
         # set a unique integer for the incidence matrix
         self._unique_matrix_idx = Branch._counter
+        Branch._counter += 1
         # Other useful properties
         self._perimeter = self._pipe_diameter * math.pi
         self._external_area = self._perimeter * self._pipe_len
