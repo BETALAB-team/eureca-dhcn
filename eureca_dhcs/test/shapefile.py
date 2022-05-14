@@ -29,10 +29,14 @@ for i, n in enumerate(network._nodes_object_ordered_list):
     print(i, n._idx, n._node_pressure)
 for i, b in enumerate(network._branches_object_ordered_list):
     print(i, b._idx, b._mass_flow_rate, b._friction_factor)
-for iteration in range(5):
+import time
+
+start = time.time()
+for iteration in range(8000):
     x = network.solve_hydraulic_balance()
-    print("#############################")
-    for i, n in enumerate(network._nodes_object_ordered_list):
-        print(i, n._idx, n._node_pressure)
-    for i, b in enumerate(network._branches_object_ordered_list):
-        print(i, b._idx, b._mass_flow_rate, b._friction_factor)
+    # print("#############################")
+    # for i, n in enumerate(network._nodes_object_ordered_list):
+    #     print(i, n._idx, n._node_pressure)
+    # for i, b in enumerate(network._branches_object_ordered_list):
+    #     print(i, b._idx, b._mass_flow_rate, b._friction_factor)
+print(time.time() - start)

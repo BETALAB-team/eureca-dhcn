@@ -90,7 +90,7 @@ class TestNodesBranches:
             pipe_diameter=0.5,  # [m]
             pipe_len=10,  # [m]
             roughness=0.2,  # [-]
-            starting_temp=50.0,  # [°C]
+            starting_temperature=50.0,  # [°C]
             nodes_objects_dict=None,
         )
 
@@ -120,7 +120,7 @@ class TestNodesBranches:
             demand_node="100000000000",
             pipe_diameter=0.5,  # [m]
             roughness=0.2,  # [-]
-            starting_temp=50.0,  # [°C]
+            starting_temperature=50.0,  # [°C]
             nodes_objects_dict=nodes_objects_dict,
         )
 
@@ -133,6 +133,8 @@ class TestNetwork:
 
     def test_network(self):
         # Standard Node creation
+        Node._counter = 0
+        Branch._counter = 0
 
         with open(
             os.path.join("eureca_dhcs", "test", "network_config", "nodes.json"), "r"
@@ -145,6 +147,8 @@ class TestNetwork:
         Network(nodes_dict=nodes, branches_dict=branches)
 
     def test_network_from_shape(self):
+        Node._counter = 0
+        Branch._counter = 0
         # Standard Node creation
 
         path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "lines.shp")
