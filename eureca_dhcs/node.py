@@ -94,6 +94,18 @@ class Node:
             raise WrongNodeType(f"Node {self._idx}, wrong node type: {value}")
         self.__node_type = value
 
+    def get_supply_branches_unique_idx(self):
+        return [
+            branch._unique_matrix_idx
+            for k, branch in self._supply_branches_objects.items()
+        ]
+
+    def get_demand_branches_unique_idx(self):
+        return [
+            branch._unique_matrix_idx
+            for k, branch in self._demand_branches_objects.items()
+        ]
+
     def distance_from_node(self, node_2):
         """
         Takes a second Node object to calculate the distance [m]

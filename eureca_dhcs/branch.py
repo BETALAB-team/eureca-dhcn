@@ -53,7 +53,7 @@ class Branch:
             self._pipe_len = pipe_len
         if roughness == None:
             # Default roughness
-            self._roughness = 1.0
+            self._roughness = 0.01
         else:
             self._roughness = roughness
         if starting_temp == None:
@@ -173,7 +173,7 @@ class Branch:
     def get_hydraulic_resistance(self, flow_rate=None):
         # TODO example to try
         # example just to try
-        resistance = 1
+        resistance = 2
         return resistance
 
     def get_thermal_conductance(self):
