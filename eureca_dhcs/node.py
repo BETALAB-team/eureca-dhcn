@@ -5,6 +5,7 @@ __version__ = "0.1"
 __maintainer__ = "Enrico Prataviera"
 
 import math
+import logging
 
 from eureca_dhcs.exceptions import DuplicateNode, WrongNodeType
 
@@ -16,6 +17,10 @@ class Node:
 
     _idx_list = []
     _counter = 0
+    # Starting pressure for hydraulic balance.
+    # This is used just for the first timestep,
+    # then pressure of the previous timestep is used
+    _starting_pressure = 10.0  # [Pa]
 
     def __init__(
         self,
@@ -65,6 +70,8 @@ class Node:
         self._unique_matrix_idx = Node._counter
         Node._counter += 1
 
+        self._node_pressure = self._starting_pressure  # [Pa]
+
     @property
     def _idx(self) -> str:
         return self.__idx
@@ -93,6 +100,22 @@ class Node:
         if value not in ["supply", "disp", "demand"]:
             raise WrongNodeType(f"Node {self._idx}, wrong node type: {value}")
         self.__node_type = value
+
+    @property
+    def _node_pressure(self) -> str:
+        return self.__node_pressure
+
+    @_node_pressure.setter
+    def _node_pressure(self, value: str):
+        try:
+            value = float(value)
+        except ValueError:
+            raise TypeError(
+                f"Node {self._idx}, node pressure must be a float: {value} [Pa]"
+            )
+        if value > 1e10:
+            logging(f"Node {self._idx} pressure over check boundaries: {value} [Pa]")
+        self.__node_pressure = value
 
     def get_supply_branches_unique_idx(self):
         return [

@@ -13,6 +13,7 @@ from scipy.optimize import root
 
 from eureca_dhcs.node import Node
 from eureca_dhcs.branch import Branch
+from eureca_dhcs._hydraulic_system_function import hydraulic_balance_system
 from eureca_dhcs.exceptions import EmptyNetworkNodes, DuplicateNode, WrongNodeType
 
 
@@ -249,38 +250,73 @@ class Network:
         self._adjacency_matrix = connection_matrix
 
     def solve_hydraulic_balance(self):
-        f0 = 0.02 / 10
-        x0 = (
-            np.array(
-                [
-                    8,
-                    2,
-                    9,
-                    5,
-                    3,
-                    2,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    1,
-                    f0,
-                    f0,
-                    f0,
-                    f0,
-                    f0,
-                    f0,
-                ]
-            )
-            * 10
-        )
+        # Boundary condition
         q = np.array([-8, 0, -6, 0, 9, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) * 10
         if q[0 : self._nodes_number].sum() != 0:
             raise ValueError("timestep ... input output mass flow rates not the same")
+        # First try vector
+        x0 = self._generate_hydraulic_balance_starting_vector()
         x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
+        self._set_hydraulic_balance_result_vector(x.x)
         return x.x
+
+    def _generate_hydraulic_balance_starting_vector(self):
+        """
+        Generate the starting guess vector from the value of the previous timestep
+        stored in the nodes and branches abjects
+
+        Returns
+        -------
+        x : np.array
+            array with the first try value [mass_flow_rates, pressures, f_factors].
+
+        """
+        branches_mass_flow_rates = np.array(
+            [branch._mass_flow_rate for branch in self._branches_object_ordered_list]
+        )
+        nodes_pressures = np.array(
+            [node._node_pressure for node in self._nodes_object_ordered_list]
+        )
+        branches_friction_factors = np.array(
+            [branch._friction_factor for branch in self._branches_object_ordered_list]
+        )
+        return np.hstack(
+            [branches_mass_flow_rates, nodes_pressures, branches_friction_factors]
+        )
+
+    def _set_hydraulic_balance_result_vector(self, x):
+        """
+        Set the new status variables to the nodes and branches objects
+
+        Parameters
+        ----------
+        x : np.array
+            array with the results of the hydraulic [mass_flow_rates, pressures, f_factors].
+
+        Returns
+        -------
+        None.
+
+        """
+        new_branches_mass_flow_rates = x[: self._branches_number]
+        new_nodes_pressures = x[
+            self._branches_number : (self._branches_number + self._nodes_number)
+        ]
+        new_branches_friction_factors = x[
+            (self._branches_number + self._nodes_number) :
+        ]
+        for mass, friction, branch in zip(
+            new_branches_mass_flow_rates,
+            new_branches_friction_factors,
+            self._branches_object_ordered_list,
+        ):
+            branch._mass_flow_rate = mass
+            branch._friction_factor = friction
+        for pressure, node in zip(
+            new_nodes_pressures,
+            self._nodes_object_ordered_list,
+        ):
+            node._node_pressure = pressure
 
     @classmethod
     def from_shapefiles(cls, nodes_file: str, branches_file: str):
@@ -350,85 +386,3 @@ class Network:
                 "roughness [-]": str(branch["roughness"]),
             }
         return cls(nodes_dict=nodes_dict, branches_dict=branches_dict)
-
-
-def hydraulic_balance_system(x, q, network):
-    # TODO adjust these value depending on the temperature
-    dynamic_viscosity = 0.36
-    water_density = 1000
-
-    system = []
-    # node balances
-    for node in network._nodes_object_ordered_list[1:]:
-        supply_idx = node.get_supply_branches_unique_idx()
-        demand_idx = node.get_demand_branches_unique_idx()
-        system.append(
-            x[demand_idx].sum() - x[supply_idx].sum() + q[node._unique_matrix_idx]
-        )
-    for branch in network._branches_object_ordered_list:
-        # system.append(
-        #     x[branch._demand_node_object._unique_matrix_idx + network._branches_number]
-        #     - x[
-        #         branch._supply_node_object._unique_matrix_idx + network._branches_number
-        #     ]
-        #     + x[branch._unique_matrix_idx] * branch.get_hydraulic_resistance()
-        # )
-
-        # Darcy–Weisbach equation for each branch
-        system.append(
-            x[branch._demand_node_object._unique_matrix_idx + network._branches_number]
-            - x[
-                branch._supply_node_object._unique_matrix_idx + network._branches_number
-            ]
-            + x[
-                network._branches_number
-                + network._nodes_number
-                + branch._unique_matrix_idx
-            ]
-            * x[branch._unique_matrix_idx] ** 2
-            * 8
-            * branch._pipe_len
-            / (np.pi**2 * branch._pipe_diameter**5 * water_density)
-        )
-
-        # Colebrook - White
-        # f factor is as follow
-        # x[
-        #         network._branches_number
-        #         + network._nodes_numbes
-        #         + branch._unique_matrix_idx
-        #     ]
-        system.append(
-            1
-            / np.sqrt(
-                x[
-                    network._branches_number
-                    + network._nodes_number
-                    + branch._unique_matrix_idx
-                ]
-            )
-            + 2
-            * np.log(
-                branch._roughness / (3.7 * branch._pipe_diameter)
-                + np.pi
-                * 2.51
-                * branch._pipe_diameter
-                * dynamic_viscosity
-                / (
-                    4
-                    * x[branch._unique_matrix_idx]
-                    * np.sqrt(
-                        x[
-                            network._branches_number
-                            + network._nodes_number
-                            + branch._unique_matrix_idx
-                        ]
-                    )
-                )
-            )
-        )
-    system.append(
-        x[network._branches_number + network._nodes_number - 1]
-        - q[network._branches_number + network._nodes_number - 1]
-    )
-    return system

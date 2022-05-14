@@ -6,7 +6,7 @@ __maintainer__ = "Enrico Prataviera"
 
 import math
 import logging
-from eureca_dhcs.exceptions import DuplicateBranch
+from eureca_dhcs.exceptions import DuplicateBranch, WrongBranchTemperatureMode
 
 
 class Branch:
@@ -17,7 +17,13 @@ class Branch:
 
     _idx_list = []
     _counter = 0
-    default_starting_temperature = 80  # Celsius
+    # this values are use just for the first timestep calculation
+    _cooling_starting_temperature = 15  # [°C]
+    _heating_starting_temperature = 80  # [°C]
+    _starting_mass_flow_rate = 50  # [kg/s]
+    _starting_friction_factor = 0.02  # [-]
+    # Darcy-Weissback equation
+    # The friction factor MUST be around this value to make the hydraulic balanc stable
 
     def __init__(
         self,
@@ -27,8 +33,9 @@ class Branch:
         pipe_diameter: float,  # [m]
         pipe_len=None,  # [m]
         roughness=None,  # [-]
-        starting_temp=None,  # [°C]
+        starting_temperature=None,  # [°C]
         nodes_objects_dict=None,
+        temperature_mode="Heating",
     ):
         self._idx = idx
         self._supply_node_idx = supply_node
@@ -56,17 +63,28 @@ class Branch:
             self._roughness = 0.01
         else:
             self._roughness = roughness
-        if starting_temp == None:
-            # Default starting temperature
-            self._previous_temp = Branch.default_starting_temperature
-        else:
-            self._previous_temp = float(starting_temp)
         # set a unique integer for the incidence matrix
         self._unique_matrix_idx = Branch._counter
         Branch._counter += 1
         # Other useful properties
         self._perimeter = self._pipe_diameter * math.pi
         self._external_area = self._perimeter * self._pipe_len
+
+        # Set some values for the dynamic simulation
+        if starting_temperature != None:
+            # Default starting temperature
+            self._branch_temperature = starting_temperature
+        else:
+            if temperature_mode == "Heating":
+                self._branch_temperature = self._heating_starting_temperature
+            elif temperature_mode == "Cooling":
+                self._branch_temperature = self._cooling_starting_temperature
+            else:
+                raise WrongBranchTemperatureMode(
+                    f"Branch {self._idx}: temperature mode must be or Heating or Cooling. Temperature mode: {temperature_mode}"
+                )
+        self._mass_flow_rate = self._starting_mass_flow_rate
+        self._friction_factor = self._starting_friction_factor
 
     @property
     def _idx(self) -> str:
@@ -150,22 +168,64 @@ class Branch:
         self.__roughness = value
 
     @property
-    def _previous_temp(self) -> float:
-        return self.__previous_temp
+    def _branch_temperature(self) -> float:
+        return self.__branch_temperature
 
-    @_previous_temp.setter
-    def _previous_temp(self, value: float):
+    @_branch_temperature.setter
+    def _branch_temperature(self, value: float):
+        try:
+            value = float(value)
+        except ValueError:
+            raise TypeError(f"Branch {self._idx}, temperature must be a float: {value}")
+        if value > 200.0:
+            logging.warning(f"Branch {self._idx}, temperature very high: {value} [°C]")
+        if value < 2.0:
+            logging.warning(f"Branch {self._idx}, temperature very low: {value} [°C]")
+        self.__branch_temperature = value
+
+    @property
+    def _mass_flow_rate(self) -> float:
+        return self.__mass_flow_rate
+
+    @_mass_flow_rate.setter
+    def _mass_flow_rate(self, value: float):
         try:
             value = float(value)
         except ValueError:
             raise TypeError(
-                f"Branch {self._idx}, starting temperature must be a float: {value}"
+                f"Branch {self._idx}, mass_flow_rate must be a float: {value}"
             )
-        if value > 200.0:
+        self.__mass_flow_rate = value
+
+    @property
+    def _friction_factor(self) -> float:
+        return self.__friction_factor
+
+    @_friction_factor.setter
+    def _friction_factor(self, value: float):
+        try:
+            value = float(value)
+        except ValueError:
+            raise TypeError(
+                f"Branch {self._idx}, friction factor must be a float: {value}"
+            )
+        if value > 0.1:
             logging.warning(
-                f"Branch {self._idx}, starting temperature very high: {value} [°C]"
+                f"Branch {self._idx}, friction_factor over 0.1: {value} [-]. The hydraulic system can be unstable"
             )
-        self.__previous_temp = value
+        if value < 0.0:
+            logging.warning(
+                f"Branch {self._idx}, negative friction factor: {value} [-]. The hydraulic system can be unstable"
+            )
+        self.__friction_factor = value
+
+    def get_density(self):
+        # TODO: put correlation for density - self._temperature
+        return 1000
+
+    def get_dynamic_viscosity(self):
+        # TODO: put correlation for viscosity - self._temperature
+        return 0.36
 
     # # First try flow rate
     # # 0.1 m/s flow rate

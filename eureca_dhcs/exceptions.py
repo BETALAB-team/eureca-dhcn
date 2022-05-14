@@ -21,5 +21,9 @@ class DuplicateBranch(Exception):
     pass
 
 
+class WrongBranchTemperatureMode(Exception):
+    pass
+
+
 class EmptyNetworkNodes(Exception):
     pass

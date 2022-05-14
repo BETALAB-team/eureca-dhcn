@@ -25,8 +25,14 @@ path_nodes = os.path.join("eureca_dhcs", "test", "input_tests", "nodes.shp")
 
 network = Network.from_shapefiles(path_nodes, path_lines)
 # %%
-x = network.solve_hydraulic_balance()
 for i, n in enumerate(network._nodes_object_ordered_list):
-    print(i, n._idx, x[network._branches_number + i] / 1000)
+    print(i, n._idx, n._node_pressure)
 for i, b in enumerate(network._branches_object_ordered_list):
-    print(i, b._idx, x[i], b._pipe_len, b._pipe_diameter)
+    print(i, b._idx, b._mass_flow_rate, b._friction_factor)
+for iteration in range(5):
+    x = network.solve_hydraulic_balance()
+    print("#############################")
+    for i, n in enumerate(network._nodes_object_ordered_list):
+        print(i, n._idx, n._node_pressure)
+    for i, b in enumerate(network._branches_object_ordered_list):
+        print(i, b._idx, b._mass_flow_rate, b._friction_factor)
