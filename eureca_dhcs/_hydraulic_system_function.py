@@ -76,6 +76,7 @@ def hydraulic_balance_system(x, q, network):
             - x[
                 branch._supply_node_object._unique_matrix_idx + network._branches_number
             ]
+            - q[branch._unique_matrix_idx + network._nodes_number]
             + x[
                 network._branches_number
                 + network._nodes_number
