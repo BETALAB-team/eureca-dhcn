@@ -27,3 +27,7 @@ class WrongBranchTemperatureMode(Exception):
 
 class EmptyNetworkNodes(Exception):
     pass
+
+
+class BoundaryConditionNotProvided(Exception):
+    pass

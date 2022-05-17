@@ -6,6 +6,9 @@ __maintainer__ = "Enrico Prataviera"
 
 import math
 import logging
+
+import numpy as np
+
 from eureca_dhcs.exceptions import DuplicateBranch, WrongBranchTemperatureMode
 
 
@@ -83,6 +86,7 @@ class Branch:
                 raise WrongBranchTemperatureMode(
                     f"Branch {self._idx}: temperature mode must be or Heating or Cooling. Temperature mode: {temperature_mode}"
                 )
+        self._mass_flow_rate_array = np.array([])
         self._mass_flow_rate = self._starting_mass_flow_rate
         self._friction_factor = self._starting_friction_factor
 
@@ -196,6 +200,7 @@ class Branch:
                 f"Branch {self._idx}, mass_flow_rate must be a float: {value}"
             )
         self.__mass_flow_rate = value
+        self._mass_flow_rate_array = np.append(self._mass_flow_rate_array, value)
 
     @property
     def _friction_factor(self) -> float:
@@ -218,6 +223,24 @@ class Branch:
                 f"Branch {self._idx}, negative friction factor: {value} [-]. The hydraulic system can be unstable"
             )
         self.__friction_factor = value
+
+    @property
+    def _pump_pressure_raise(self) -> np.array:
+        return self.__pump_pressure_raise
+
+    @_pump_pressure_raise.setter
+    def _pump_pressure_raise(self, value: np.array):
+        try:
+            value = np.array(value)
+        except ValueError:
+            raise TypeError(
+                f"Branch {self._idx}, _pump_pressure_raise must be a np.array: {value}"
+            )
+        if np.any(value < 0):
+            logging.warning(
+                f"Branch {self._idx}: branch with negative pump pressure raise. Calculation will continue.."
+            )
+        self.__pump_pressure_raise = value
 
     def get_density(self):
         # TODO: put correlation for density - self._temperature

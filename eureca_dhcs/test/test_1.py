@@ -154,4 +154,16 @@ class TestNetwork:
         path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "lines.shp")
         path_nodes = os.path.join("eureca_dhcs", "test", "input_tests", "nodes.shp")
 
-        Network.from_shapefiles(path_nodes, path_lines)
+        network = Network.from_shapefiles(
+            path_nodes,
+            path_lines,
+            output_path=os.path.join("eureca_dhcs", "test", "output_tests"),
+        )
+
+        boundaries = os.path.join(
+            "eureca_dhcs", "test", "input_tests", "conditions.xlsx"
+        )
+        network.load_boundary_conditions_from_excel(boundaries, 10)
+        for iteration in range(10):
+            network.solve_hydraulic_balance(iteration)
+        network.save_hydraulic_results()

@@ -7,6 +7,8 @@ __maintainer__ = "Enrico Prataviera"
 import math
 import logging
 
+import numpy as np
+
 from eureca_dhcs.exceptions import DuplicateNode, WrongNodeType
 
 
@@ -70,6 +72,7 @@ class Node:
         self._unique_matrix_idx = Node._counter
         Node._counter += 1
 
+        self._node_pressure_array = np.array([])
         self._node_pressure = self._starting_pressure  # [Pa]
 
     @property
@@ -114,8 +117,33 @@ class Node:
                 f"Node {self._idx}, node pressure must be a float: {value} [Pa]"
             )
         if value > 1e10:
-            logging(f"Node {self._idx} pressure over check boundaries: {value} [Pa]")
+            logging.warning(
+                f"Node {self._idx} pressure over check boundaries: {value} [Pa]"
+            )
         self.__node_pressure = value
+        self._node_pressure_array = np.append(self._node_pressure_array, value)
+
+    @property
+    def _boundary_mass_flow_rate(self) -> np.array:
+        return self.__boundary_mass_flow_rate
+
+    @_boundary_mass_flow_rate.setter
+    def _boundary_mass_flow_rate(self, value: np.array):
+        try:
+            value = np.array(value)
+        except ValueError:
+            raise TypeError(
+                f"Node {self._idx}, _boundary_mass_flow_rate must be a np.array: {value}"
+            )
+        if self._node_type == "demand" and np.any(value < 0):
+            logging.warning(
+                f"Node {self._idx}: demand node with negative mass flow rate"
+            )
+        if self._node_type == "supply" and np.any(value > 0):
+            logging.warning(
+                f"Node {self._idx}: supply node with positive mass flow rate"
+            )
+        self.__boundary_mass_flow_rate = value
 
     def get_supply_branches_unique_idx(self):
         return [

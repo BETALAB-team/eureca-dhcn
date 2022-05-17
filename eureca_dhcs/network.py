@@ -9,16 +9,22 @@ import logging
 
 import numpy as np
 import geopandas as gpd
+import pandas as pd
 from scipy.optimize import root
 
 from eureca_dhcs.node import Node
 from eureca_dhcs.branch import Branch
 from eureca_dhcs._hydraulic_system_function import hydraulic_balance_system
-from eureca_dhcs.exceptions import EmptyNetworkNodes, DuplicateNode, WrongNodeType
+from eureca_dhcs.exceptions import (
+    EmptyNetworkNodes,
+    DuplicateNode,
+    WrongNodeType,
+    BoundaryConditionNotProvided,
+)
 
 
 class Network:
-    def __init__(self, nodes_dict: dict, branches_dict: dict):
+    def __init__(self, nodes_dict: dict, branches_dict: dict, output_path=None):
         """
         Creates a district water network starting from nodes and branches dictionaries
         See the example below
@@ -84,6 +90,29 @@ class Network:
         self._couple_branches_to_nodes()
         # function to calc adjacency matrix
         self._calc_adjacency_matrix()
+
+        # Output file
+        self.output_path = None
+        if output_path != None:
+            self.output_path = str(output_path)
+            self._create_output_folder()
+
+    def _create_output_folder(self):
+        if self.output_path == None:
+            raise AttributeError(f"To create output file you must set an output folder")
+        if not os.path.isdir(self.output_path):
+            os.mkdir(self.output_path)
+        # Logging file
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.DEBUG)  # or whatever
+        handler = logging.FileHandler(
+            os.path.join(self.output_path, "logging.log"), "w", "utf-8"
+        )  # or whatever
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )  # or whatever
+        handler.setFormatter(formatter)  # Pass handler as a parameter, not assign
+        root_logger.addHandler(handler)
 
     def _create_nodes(self):
         """
@@ -249,16 +278,199 @@ class Network:
             connection_matrix[branch._demand_node_object._unique_matrix_idx, column] = 1
         self._adjacency_matrix = connection_matrix
 
-    def solve_hydraulic_balance(self):
+    def load_boundary_conditions_from_excel(
+        self,
+        excel_path: str,
+        number_of_timesteps: int,
+    ):
+        hydraulic = pd.read_excel(
+            excel_path,
+            sheet_name="Hydraulic",
+            index_col=0,
+            header=[0, 1, 2],
+        )
+
+        nodes = hydraulic["Node"]["Mass flow rate [kg/s]"]
+        nodes_dict = nodes.to_dict(orient="List")
+        branches = hydraulic["Branch"]["Pump pressure raise [Pa]"]
+        branches_dict = branches.to_dict(orient="List")
+        # Just to convert in str and np.array
+        nodes_dict = {str(k): np.array(node) for k, node in nodes_dict.items()}
+        branches_dict = {
+            str(k): np.array(branch) for k, branch in branches_dict.items()
+        }
+        self.load_boundary_conditions(nodes_dict, branches_dict, number_of_timesteps)
+
+    def load_boundary_conditions(
+        self,
+        nodes_boundary_conditions: dict,
+        branches_boundary_conditions: dict,
+        number_of_timesteps: int,
+    ):
+        """
+        This method execute:
+            self.load_nodes_boundary_condition(nodes_boundary_conditions, number_of_timesteps)
+            self.load_branches_boundary_condition(branches_boundary_conditions, number_of_timesteps)
+
+
+        Parameters
+        ----------
+        nodes_boundary_conditions : dict
+            Dictionary with the following sintax (mass flow rates of the supply/demend nodes):
+                "1" : np.array([2,2.5,2.5,....]),
+                "3" : np.array([-2,-5,-3,....]),
+                "7" : np.array([2.3,2.6,2,....]),
+                .
+                .
+                ..
+        branches_boundary_conditions : dict
+            Dictionary with the following sintax (pump pressure raise for the branches):
+                "1" : np.array([2,2.5,2.5,....]),
+                "3" : np.array([-2,-5,-3,....]),
+                "7" : np.array([2.3,2.6,2,....]),
+                .
+                .
+                ..
+        number_of_timesteps : int
+            Number of timesteps to be considered.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.load_nodes_boundary_condition(
+            nodes_boundary_conditions, number_of_timesteps
+        )
+        self.load_branches_boundary_condition(
+            branches_boundary_conditions, number_of_timesteps
+        )
+
+    def load_nodes_boundary_condition(
+        self, boundary_conditions: dict, number_of_timesteps: int
+    ):
+        """
+        This method loads the mass flow rate boundary conditions of the nodes.
+        Use kg/s as reference unit.
+        Dispatch nodes are those without an entering/exiting mass flow rate. Their boundary condition is zero.
+        Provide negative flow rates for supply nodes and positive for demand nodes.
+
+        Parameters
+        ----------
+        boundary_conditions : dict
+            Dictionary with the following sintax:
+                "1" : np.array([2,2.5,2.5,....]),
+                "3" : np.array([-2,-5,-3,....]),
+                "7" : np.array([2.3,2.6,2,....]),
+                .
+                .
+                .
+
+        number_of_timesteps: int
+            Number of timesteps to be considered
+
+        Returns
+        -------
+        None.
+
+        """
+
+        for node_k, node in self._nodes_object_dict.items():
+            if node._node_type in ["demand", "supply"]:
+                try:
+                    if len(boundary_conditions[node_k]) < number_of_timesteps:
+                        raise ValueError(
+                            f"Node {node._idx}: the boundary condition for the node is shorter than the number of timesteps. Provide a longer boundary condition"
+                        )
+                    node._boundary_mass_flow_rate = boundary_conditions[node_k][
+                        :number_of_timesteps
+                    ]
+                except KeyError:
+                    raise BoundaryConditionNotProvided(
+                        f"Node {node._idx}: the node is a {node._node_type} node, but no boundary mass flow rate is provided.\nPlease provide a boundary condition"
+                    )
+            else:
+                node._boundary_mass_flow_rate = np.zeros(number_of_timesteps)
+
+    def load_branches_boundary_condition(
+        self, boundary_conditions: dict, number_of_timesteps: int
+    ):
+        """
+        This method loads the pump pressure rise boundary conditions of the branches.
+        Use Pa as reference unit.
+        Provide positive values
+
+        Parameters
+        ----------
+        boundary_conditions : dict
+            Dictionary with the following sintax:
+                "1" : np.array([2,2.5,2.5,....]),
+                "3" : np.array([-2,-5,-3,....]),
+                "7" : np.array([2.3,2.6,2,....]),
+                .
+                .
+                .
+
+        number_of_timesteps: int
+            Number of timesteps to be considered
+
+        Returns
+        -------
+        None.
+
+        """
+
+        for branch_k, branch in self._branches_object_dict.items():
+            try:
+                if len(boundary_conditions[branch_k]) < number_of_timesteps:
+                    raise ValueError(
+                        f"Branch {branch._idx}: the boundary condition for the branch is shorter than the number of timesteps. Provide a longer boundary condition"
+                    )
+                branch._pump_pressure_raise = boundary_conditions[branch_k][
+                    :number_of_timesteps
+                ]
+            except KeyError:
+                branch._pump_pressure_raise = np.zeros(number_of_timesteps)
+
+    def solve_hydraulic_balance(self, timestep: int):
         # Boundary condition
-        q = np.array([-8, 0, -6, 0, 9, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) * 10
+        q = self._generate_hydraulic_balance_boundary_condition(timestep)
         if q[0 : self._nodes_number].sum() != 0:
-            raise ValueError("timestep ... input output mass flow rates not the same")
+            raise ValueError(
+                f"Timestep {timestep}: input - output mass flow rates not equal. Mass balance cannot be solved"
+            )
         # First try vector
         x0 = self._generate_hydraulic_balance_starting_vector()
         x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
-        self._set_hydraulic_balance_result_vector(x.x)
+        self._set_hydraulic_balance_results_vector(x.x)
         return x.x
+
+    def _generate_hydraulic_balance_boundary_condition(self, timestep):
+        q = []
+        for node in self._nodes_object_ordered_list:
+            try:
+                q.append(node._boundary_mass_flow_rate[timestep])
+            except AttributeError:
+                raise BoundaryConditionNotProvided(
+                    f"Node {node._idx}: boundary condition not provided. Be sure to load the boundaries before simulation. "
+                )
+            except IndexError:
+                raise IndexError(
+                    f"Node {node._idx}: selected timestep {timestep} longer than boundary conditions. "
+                )
+        for branch in self._branches_object_ordered_list:
+            try:
+                q.append(branch._pump_pressure_raise[timestep])
+            except AttributeError:
+                raise BoundaryConditionNotProvided(
+                    f"Branch {branch._idx}: boundary condition not provided. Be sure to load the boundaries before simulation. "
+                )
+            except IndexError:
+                raise IndexError(
+                    f"Branch {branch._idx}: selected timestep {timestep} longer than boundary conditions. "
+                )
+        [q.append(0) for i in range(self._branches_number)]
+        return np.array(q)
 
     def _generate_hydraulic_balance_starting_vector(self):
         """
@@ -284,7 +496,7 @@ class Network:
             [branches_mass_flow_rates, nodes_pressures, branches_friction_factors]
         )
 
-    def _set_hydraulic_balance_result_vector(self, x):
+    def _set_hydraulic_balance_results_vector(self, x):
         """
         Set the new status variables to the nodes and branches objects
 
@@ -318,8 +530,42 @@ class Network:
         ):
             node._node_pressure = pressure
 
+    def save_hydraulic_results(self):
+        if self.output_path == None:
+            logging.warning(
+                f"Output folder not provided, results will be saved in the working directory"
+            )
+            self.output_path = os.path.join(".")
+            self._create_output_folder()
+        self.save_nodes_pressures()
+        self.save_branches_mass_flow_rates()
+
+    def save_nodes_pressures(self):
+        nodes_pressures_header = ""
+        matrix = []
+        for node_k, node in self._nodes_object_dict.items():
+            nodes_pressures_header += node_k + ", "
+            matrix.append(node._node_pressure_array)
+        matrix = np.array(matrix).transpose()
+        with open(os.path.join(self.output_path, "NodesPressures.csv"), "w") as nodes:
+            nodes.write(nodes_pressures_header + "\n")
+            np.savetxt(nodes, matrix, delimiter=",", fmt="%.0f")
+
+    def save_branches_mass_flow_rates(self):
+        branches_pressures_header = ""
+        matrix = []
+        for branch_k, branch in self._branches_object_dict.items():
+            branches_pressures_header += branch_k + ", "
+            matrix.append(branch._mass_flow_rate_array)
+        matrix = np.array(matrix).transpose()
+        with open(
+            os.path.join(self.output_path, "BranchMassFlowRates.csv"), "w"
+        ) as branches:
+            branches.write(branches_pressures_header + "\n")
+            np.savetxt(branches, matrix, delimiter=",", fmt="%.2f")
+
     @classmethod
-    def from_shapefiles(cls, nodes_file: str, branches_file: str):
+    def from_shapefiles(cls, nodes_file: str, branches_file: str, output_path=None):
         """
         Creates a district water network starting from GIS nodes and branches shapefile
 
@@ -385,4 +631,6 @@ class Network:
                 "pipe diameter [m]": str(branch["pipe_d [m]"]),
                 "roughness [-]": str(branch["roughness"]),
             }
-        return cls(nodes_dict=nodes_dict, branches_dict=branches_dict)
+        return cls(
+            nodes_dict=nodes_dict, branches_dict=branches_dict, output_path=output_path
+        )
