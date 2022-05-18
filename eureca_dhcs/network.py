@@ -578,7 +578,7 @@ class Network:
         x, A, q = thermal_balance_system_inverse(self, q, time_interval)
         self._set_thermal_balance_results_vector(x)
 
-        return x
+        return x, A, q
 
     def _generate_hydraulic_balance_boundary_condition(self, timestep):
         q = []
@@ -732,7 +732,7 @@ class Network:
 
     def _set_thermal_balance_results_vector(self, x):
         """
-        Set the new status variables to the nodes and branches objects
+        Set the new status variables to the nodes and branches objects.
 
         Parameters
         ----------
