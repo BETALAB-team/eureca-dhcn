@@ -123,14 +123,15 @@ def thermal_balance_system_inverse(network, q, time_interval):
     """
 
     # Problema Termico
-    # TODO Cambiare formula del bilancio di ramo
 
     AT = np.zeros(
         [
-            (network._branches_number + network._nodes_number),
-            (network._branches_number + network._nodes_number),
+            (network._branches_number * 2 + network._nodes_number),
+            (network._branches_number * 2 + network._nodes_number),
         ]
     )
+    # Add the branch exit temperature variable and known term
+    q = np.append(q, [0] * network._branches_number)
 
     for node in network._nodes_object_ordered_list:
         if node._node_type == "supply":
@@ -144,7 +145,9 @@ def thermal_balance_system_inverse(network, q, time_interval):
                 total_entering_flow_rate += supply_branch._mass_flow_rate
                 AT[
                     node._unique_matrix_idx,
-                    network._nodes_number + supply_branch._unique_matrix_idx,
+                    network._nodes_number
+                    + network._branches_number
+                    + supply_branch._unique_matrix_idx,
                 ] = supply_branch._mass_flow_rate
             AT[node._unique_matrix_idx, node._unique_matrix_idx] = (
                 -1 * total_entering_flow_rate
@@ -163,6 +166,17 @@ def thermal_balance_system_inverse(network, q, time_interval):
             supply_node = branch._supply_node_object
             demand_node = branch._demand_node_object
         AT[line, supply_node._unique_matrix_idx] = -1 * G
-        AT[line, demand_node._unique_matrix_idx] = 1 * G * 0
-        AT[line, line] = C / time_interval + G * 1 + f_loss
+        AT[
+            line,
+            network._nodes_number
+            + network._branches_number
+            + branch._unique_matrix_idx,
+        ] = (
+            1 * G
+        )
+        AT[line, line] = C / time_interval + f_loss
+        # Equation for average between exit and entering temperatur
+        AT[line + network._branches_number, supply_node._unique_matrix_idx] = 1
+        AT[line + network._branches_number, line + network._branches_number] = 1
+        AT[line + network._branches_number, line] = -2
     return np.linalg.solve(AT, q), AT, q
