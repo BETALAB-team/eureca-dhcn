@@ -18,6 +18,7 @@ import numpy as np
 from eureca_dhcs.node import Node
 from eureca_dhcs.branch import Branch
 from eureca_dhcs.network import Network
+from eureca_dhcs.soil import Soil
 from eureca_dhcs.exceptions import DuplicateNode, WrongNodeType
 
 
@@ -87,9 +88,14 @@ class TestNodesBranches:
             idx="A",
             supply_node="3",
             demand_node="4",
-            pipe_diameter=0.5,  # [m]
+            pipe_ext_diameter=0.5,  # [m]
             pipe_len=10,  # [m]
             roughness=0.2,  # [-]
+            pipe_thickness=0.01,  # [m]
+            pipe_depth=0.8,  # [m]
+            insulation_thickness=0.01,  # [m]
+            pipe_conductivity=50.0,  # [W/(m/K)]
+            insulation_conductivity=0.1,  # [m]
             starting_temperature=50.0,  # [°C]
             nodes_objects_dict=None,
         )
@@ -118,8 +124,13 @@ class TestNodesBranches:
             idx="A",
             supply_node="800000",
             demand_node="100000000000",
-            pipe_diameter=0.5,  # [m]
+            pipe_ext_diameter=0.5,  # [m]
             roughness=0.2,  # [-]
+            pipe_thickness=0.01,  # [m]
+            pipe_depth=0.8,  # [m]
+            insulation_thickness=0.01,  # [m]
+            pipe_conductivity=50.0,  # [W/(m/K)]
+            insulation_conductivity=0.1,  # [m]
             starting_temperature=50.0,  # [°C]
             nodes_objects_dict=nodes_objects_dict,
         )
@@ -144,7 +155,8 @@ class TestNetwork:
             os.path.join("eureca_dhcs", "test", "network_config", "branches.json"), "r"
         ) as outfile:
             branches = json.load(outfile)
-        Network(nodes_dict=nodes, branches_dict=branches)
+        soil = Soil()
+        Network(nodes_dict=nodes, branches_dict=branches, soil_obj=soil)
 
     def test_network_from_shape(self):
         Node._counter = 0
@@ -153,10 +165,11 @@ class TestNetwork:
 
         path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "lines.shp")
         path_nodes = os.path.join("eureca_dhcs", "test", "input_tests", "nodes.shp")
-
+        soil = Soil()
         network = Network.from_shapefiles(
             path_nodes,
             path_lines,
+            soil,
             output_path=os.path.join("eureca_dhcs", "test", "output_tests"),
         )
 
@@ -166,4 +179,5 @@ class TestNetwork:
         network.load_boundary_conditions_from_excel(boundaries, 10)
         for iteration in range(10):
             network.solve_hydraulic_balance(iteration)
-        network.save_hydraulic_results()
+            sol = network.solve_thermal_balance(iteration)
+        network.save_results()

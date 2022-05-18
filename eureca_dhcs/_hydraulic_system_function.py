@@ -86,7 +86,7 @@ def hydraulic_balance_system(x, q, network):
             * x[branch._unique_matrix_idx] ** 2
             * 8
             * branch._pipe_len
-            / (np.pi**2 * branch._pipe_diameter**5 * branch.get_density())
+            / (np.pi**2 * branch._pipe_int_diameter**5 * branch.get_density())
         )
 
         # Colebrook - White equation for each branch
@@ -96,6 +96,12 @@ def hydraulic_balance_system(x, q, network):
         #         + network._nodes_numbes
         #         + branch._unique_matrix_idx
         #     ]
+        # reinolds = (
+        #     4
+        #     * x[branch._unique_matrix_idx]
+        #     / (np.pi * branch.get_dynamic_viscosity() * branch._pipe_int_diameter)
+        # )
+        # if reinolds > 2300:
         system.append(
             1
             / np.sqrt(
@@ -107,10 +113,10 @@ def hydraulic_balance_system(x, q, network):
             )
             + 2
             * np.log(
-                branch._roughness / (3.7 * branch._pipe_diameter)
+                branch._roughness / (3.7 * branch._pipe_int_diameter)
                 + np.pi
                 * 2.51
-                * branch._pipe_diameter
+                * branch._pipe_int_diameter
                 * branch.get_dynamic_viscosity()
                 / (
                     4
@@ -125,6 +131,20 @@ def hydraulic_balance_system(x, q, network):
                 )
             )
         )
+        # else:
+        #     system.append(
+        #         x[
+        #             network._branches_number
+        #             + network._nodes_number
+        #             + branch._unique_matrix_idx
+        #         ]
+        #         - 64
+        #         / (
+        #             4
+        #             * x[branch._unique_matrix_idx]
+        #             / (np.pi * branch.get_dynamic_viscosity() * branch._pipe_int_diameter)
+        #         )
+        #     )
     system.append(
         x[network._branches_number + network._nodes_number - 1]
         - q[network._branches_number + network._nodes_number - 1]

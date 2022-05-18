@@ -10,6 +10,7 @@ import logging
 import numpy as np
 
 from eureca_dhcs.exceptions import DuplicateBranch, WrongBranchTemperatureMode
+from eureca_dhcs.soil import Soil
 
 
 class Branch:
@@ -22,9 +23,9 @@ class Branch:
     _counter = 0
     # this values are use just for the first timestep calculation
     _cooling_starting_temperature = 15  # [°C]
-    _heating_starting_temperature = 80  # [°C]
+    _heating_starting_temperature = 55  # [°C]
     _starting_mass_flow_rate = 50  # [kg/s]
-    _starting_friction_factor = 0.02  # [-]
+    _starting_friction_factor = 0.001  # [-]
     # Darcy-Weissback equation
     # The friction factor MUST be around this value to make the hydraulic balanc stable
 
@@ -33,17 +34,30 @@ class Branch:
         idx: str,
         supply_node: str,
         demand_node: str,
-        pipe_diameter: float,  # [m]
+        pipe_ext_diameter: float,  # [m]
+        pipe_thickness: float,  # [m]
+        pipe_depth: float,  # [m]
+        insulation_thickness: float,  # [m]
+        pipe_conductivity: float,  # [W/(m/K)]
+        insulation_conductivity: float,  # [m]
         pipe_len=None,  # [m]
         roughness=None,  # [-]
         starting_temperature=None,  # [°C]
         nodes_objects_dict=None,
+        soil_obj=None,
         temperature_mode="Heating",
     ):
         self._idx = idx
         self._supply_node_idx = supply_node
         self._demand_node_idx = demand_node
-        self._pipe_diameter = pipe_diameter
+        self._pipe_thickness = pipe_thickness
+        self._pipe_ext_diameter = pipe_ext_diameter  ##############################
+        self._pipe_int_diameter = self._pipe_ext_diameter - 2 * self._pipe_thickness
+        self._pipe_depth = pipe_depth
+        # Other properties
+        self._insulation_thickness = insulation_thickness
+        self._pipe_conductivity = pipe_conductivity
+        self._insulation_conductivity = insulation_conductivity
 
         # Check if pipe len is passed
         if pipe_len == None:
@@ -70,9 +84,11 @@ class Branch:
         self._unique_matrix_idx = Branch._counter
         Branch._counter += 1
         # Other useful properties
-        self._perimeter = self._pipe_diameter * math.pi
+        self._perimeter = self._pipe_ext_diameter * math.pi
         self._external_area = self._perimeter * self._pipe_len
+        self._volume = self._pipe_int_diameter**2 / 4 * np.pi * self._pipe_len
 
+        self._branch_temperature_array = np.array([])
         # Set some values for the dynamic simulation
         if starting_temperature != None:
             # Default starting temperature
@@ -89,6 +105,8 @@ class Branch:
         self._mass_flow_rate_array = np.array([])
         self._mass_flow_rate = self._starting_mass_flow_rate
         self._friction_factor = self._starting_friction_factor
+        if soil_obj != None:
+            self.calc_ground_loss_factor(soil_obj)
 
     @property
     def _idx(self) -> str:
@@ -106,11 +124,11 @@ class Branch:
         self.__idx = value
 
     @property
-    def _pipe_diameter(self) -> float:
-        return self.__pipe_diameter
+    def _pipe_ext_diameter(self) -> float:
+        return self.__pipe_ext_diameter
 
-    @_pipe_diameter.setter
-    def _pipe_diameter(self, value: float):
+    @_pipe_ext_diameter.setter
+    def _pipe_ext_diameter(self, value: float):
         try:
             value = float(value)
         except ValueError:
@@ -119,14 +137,14 @@ class Branch:
             )
         if value > 2.0:
             logging.warning(f"Branch {self._idx}, pipe diameter very high: {value} [m]")
-        self.__pipe_diameter = value
+        self.__pipe_ext_diameter = value
 
     @property
-    def _pipe_diameter(self) -> float:
-        return self.__pipe_diameter
+    def _pipe_int_diameter(self) -> float:
+        return self.__pipe_int_diameter
 
-    @_pipe_diameter.setter
-    def _pipe_diameter(self, value: float):
+    @_pipe_int_diameter.setter
+    def _pipe_int_diameter(self, value: float):
         try:
             value = float(value)
         except ValueError:
@@ -139,7 +157,109 @@ class Branch:
             )
         if value > 2.0:
             logging.warning(f"Branch {self._idx}, pipe diameter very high: {value} [m]")
-        self.__pipe_diameter = value
+        self.__pipe_int_diameter = value
+
+    @property
+    def _pipe_thickness(self) -> float:
+        return self.__pipe_thickness
+
+    @_pipe_thickness.setter
+    def _pipe_thickness(self, value: float):
+        try:
+            value = float(value)
+        except ValueError:
+            raise TypeError(
+                f"Branch {self._idx}, pipe thickness must be a float: {value}"
+            )
+        if value < 0.0:
+            raise ValueError(
+                f"Branch {self._idx}, pipe diameter negative pipe diameter: {value} [m]"
+            )
+        if value > 0.1:
+            logging.warning(
+                f"Branch {self._idx}, pipe thickness very high: {value} [m]"
+            )
+        self.__pipe_thickness = value
+
+    @property
+    def _pipe_depth(self) -> float:
+        return self.__pipe_depth
+
+    @_pipe_depth.setter
+    def _pipe_depth(self, value: float):
+        try:
+            value = float(value)
+        except ValueError:
+            raise TypeError(f"Branch {self._idx}, pipe depth must be a float: {value}")
+        if value > 10.0:
+            logging.warning(f"Branch {self._idx}, pipe depth very high: {value} [m]")
+        self.__pipe_depth = value
+
+    @property
+    def _insulation_thickness(self) -> float:
+        return self.__insulation_thickness
+
+    @_insulation_thickness.setter
+    def _insulation_thickness(self, value: float):
+        try:
+            value = float(value)
+        except ValueError:
+            raise TypeError(
+                f"Branch {self._idx}, insulation thickness must be a float: {value}"
+            )
+        if value < 0.0:
+            raise ValueError(
+                f"Branch {self._idx}, insulation thickness negative: {value} [m]"
+            )
+        if value > 0.1:
+            logging.warning(
+                f"Branch {self._idx}, insulation thickness very high: {value} [m]"
+            )
+        self.__insulation_thickness = value
+
+    @property
+    def _pipe_conductivity(self) -> float:
+        return self.__pipe_conductivity
+
+    @_pipe_conductivity.setter
+    def _pipe_conductivity(self, value: float):
+        try:
+            value = float(value)
+        except ValueError:
+            raise TypeError(
+                f"Branch {self._idx}, pipe conductivity must be a float: {value}"
+            )
+        if value < 0.0:
+            raise ValueError(
+                f"Branch {self._idx}, pipe conductivity negative: {value} [m]"
+            )
+        if value > 100:
+            logging.warning(
+                f"Branch {self._idx}, pipe conductivity very high: {value} [m]"
+            )
+        self.__pipe_conductivity = value
+
+    @property
+    def _insulation_conductivity(self) -> float:
+        return self.__insulation_conductivity
+
+    @_insulation_conductivity.setter
+    def _insulation_conductivity(self, value: float):
+        try:
+            value = float(value)
+        except ValueError:
+            raise TypeError(
+                f"Branch {self._idx}, insulation conductivity must be a float: {value}"
+            )
+        if value < 0.0:
+            raise ValueError(
+                f"Branch {self._idx}, insulation conductivity negative: {value} [m]"
+            )
+        if value > 10:
+            logging.warning(
+                f"Branch {self._idx}, insulation conductivity very high: {value} [m]"
+            )
+        self.__insulation_conductivity = value
 
     @property
     def _pipe_len(self) -> float:
@@ -186,6 +306,9 @@ class Branch:
         if value < 2.0:
             logging.warning(f"Branch {self._idx}, temperature very low: {value} [°C]")
         self.__branch_temperature = value
+        self._branch_temperature_array = np.append(
+            self._branch_temperature_array, value
+        )
 
     @property
     def _mass_flow_rate(self) -> float:
@@ -243,26 +366,92 @@ class Branch:
         self.__pump_pressure_raise = value
 
     def get_density(self):
-        # TODO: put correlation for density - self._temperature
-        return 1000
+        # https://www.researchgate.net/publication/222573141_Enhanced_modeling_of_moisture_equilibrium_and_transport_in_cementitious_materials_under_arbitrary_temperature_and_relative_humidity_history/figures?lo=1
+        t = self._branch_temperature + 273.15
+        d = 1.54e-8 * t**3 - 1.85e-5 * t**2 + 6.65e-3 * t + 0.247  # [g/cm3]
+        return d * 1000
+
+    def get_specific_heat(self):
+        # TODO: put correlation for spec_heat - self._temperature
+        return 4182  # J/kg K
 
     def get_dynamic_viscosity(self):
-        # TODO: put correlation for viscosity - self._temperature
-        return 0.36
+        # https://www.researchgate.net/publication/222573141_Enhanced_modeling_of_moisture_equilibrium_and_transport_in_cementitious_materials_under_arbitrary_temperature_and_relative_humidity_history/figures?lo=1
+        t = self._branch_temperature + 273.15
+        # mu = (
+        #     3.38e-8 * t**4 - 4.63e-5 * t**3 + 2.37e-2 * t**2 + 5.45 * t + 470
+        # )  # [kg/(m s)]
+        # https://powderprocess.net/Tools_html/Data_Diagrams/Water_Properties_Correlations.html
+        mu = np.exp(-3.7188 + 578.919 / (-137.546 + t)) / 1000  # [kg/(m s)]
+        return mu
+
+    def get_dynamic_capacity(self):
+        return self.get_density() * self._volume * self.get_specific_heat()
+
+    def calc_soil_linear_resistance(self, soil: Soil):
+        # Based onn ASHRAE DHC Handbook
+        try:
+            soil_conductivity = soil._soil_conductivity
+        except Exception:
+            raise TypeError(
+                f"Branch {self._idx}, calc_ground_resistance \n You must provide a proper soil object with a soil conductivity"
+            )
+        r_0 = self._pipe_ext_diameter / 2 + self._insulation_thickness
+        d = self._pipe_depth
+        if d / r_0 > 4:
+            self._soil_linear_resistance = np.log(2 * d / r_0) / (
+                2 * np.pi * soil_conductivity
+            )
+        else:
+            self._soil_linear_resistance = np.log(
+                d / r_0 + np.sqrt(d**2 / r_0**2 - 1)
+            ) / (2 * np.pi * soil_conductivity)
+            if d / r_0 < 2:
+                logging.warning(
+                    f"Branch {self._idx}, _soil_linear_resistance calculation. Ratio d/r0 lower than 2"
+                )
+
+    def calc_insulation_resistance(self):
+        self._insulation_linear_resistance = np.log(
+            (self._pipe_ext_diameter + self._insulation_thickness * 2)
+            / self._pipe_ext_diameter
+        ) / (2 * np.pi * self._insulation_conductivity)
+
+    def calc_pipe_resistance(self):
+        self._pipe_linear_resistance = np.log(
+            self._pipe_ext_diameter / self._pipe_int_diameter
+        ) / (2 * np.pi * self._pipe_conductivity)
+
+    def calc_ground_loss_factor(self, soil):
+        self.calc_soil_linear_resistance(soil)
+        self.calc_insulation_resistance()
+        self.calc_pipe_resistance()
+
+        R = (
+            self._pipe_linear_resistance
+            + self._insulation_linear_resistance
+            + self._soil_linear_resistance
+        )  # [(m K)/W]
+        U = self._pipe_len / R  # [W/K]
+        self.ground_loss_factor = U  # W/k
+
+    # def get_ground_temperature(self):
+    #     # TODO: put real_t_ground
+    #     return 13.0
 
     # # First try flow rate
     # # 0.1 m/s flow rate
-    # self.first_try_flow_rate = 0.1 * 1000 * self.pipe_diameter**2 / 4
-    def get_hydraulic_resistance(self, flow_rate=None):
-        # TODO example to try
-        # example just to try
-        resistance = 2
-        return resistance
+    # # self.first_try_flow_rate = 0.1 * 1000 * self.pipe_diameter**2 / 4
+    # def get_hydraulic_resistance(self, flow_rate=None):
+    #     # TODO example to try
+    #     # example just to try
+    #     resistance = 2
+    #     return resistance
 
-    def get_thermal_conductance(self):
-        # TODO example to try
-        U = 2  # [W/m2K]
-        return self.external_area * U  # [W/K]
+    # def get_thermal_conductance(self):
+    #     # TODO example to try
+    #     U = 2  # [W/m2K]
+    #     return self.external_area * U  # [W/K]
 
     # def set_timestep_flow_rate(self, flow):
     #     self.timestep_flow_rate = flow

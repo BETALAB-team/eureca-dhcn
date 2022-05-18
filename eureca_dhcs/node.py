@@ -23,6 +23,7 @@ class Node:
     # This is used just for the first timestep,
     # then pressure of the previous timestep is used
     _starting_pressure = 10.0  # [Pa]
+    _starting_temperature = 50.0  # [Pa]
 
     def __init__(
         self,
@@ -74,6 +75,8 @@ class Node:
 
         self._node_pressure_array = np.array([])
         self._node_pressure = self._starting_pressure  # [Pa]
+        self._node_temperature_array = np.array([])
+        self._node_temperature = self._starting_temperature  # [Pa]
 
     @property
     def _idx(self) -> str:
@@ -105,11 +108,11 @@ class Node:
         self.__node_type = value
 
     @property
-    def _node_pressure(self) -> str:
+    def _node_pressure(self) -> float:
         return self.__node_pressure
 
     @_node_pressure.setter
-    def _node_pressure(self, value: str):
+    def _node_pressure(self, value: float):
         try:
             value = float(value)
         except ValueError:
@@ -122,6 +125,27 @@ class Node:
             )
         self.__node_pressure = value
         self._node_pressure_array = np.append(self._node_pressure_array, value)
+
+    @property
+    def _node_temperature(self) -> float:
+        return self.__node_temperature
+
+    @_node_temperature.setter
+    def _node_temperature(self, value: float):
+        try:
+            value = float(value)
+        except ValueError:
+            raise TypeError(
+                f"Node {self._idx}, node temperature must be a float: {value} [°C]"
+            )
+        if value > 95:
+            logging.warning(f"Node {self._idx} temperature over 95 °C: {value} [°C]")
+        if value < 5:
+            logging.warning(
+                f"Node {self._idx} temperature lower than 5 °C: {value} [°C]"
+            )
+        self.__node_temperature = value
+        self._node_temperature_array = np.append(self._node_temperature_array, value)
 
     @property
     def _boundary_mass_flow_rate(self) -> np.array:
@@ -145,6 +169,28 @@ class Node:
             )
         self.__boundary_mass_flow_rate = value
 
+    @property
+    def _boundary_temperature(self) -> np.array:
+        return self.__boundary_temperature
+
+    @_boundary_temperature.setter
+    def _boundary_temperature(self, value: np.array):
+        try:
+            value = np.array(value)
+        except ValueError:
+            raise TypeError(
+                f"Node {self._idx}, _boundary_temperature must be a np.array: {value}"
+            )
+        if np.any(value < 5):
+            logging.warning(f"Node {self._idx}: supply node temperature less than 5 °C")
+        if np.any(value > 95):
+            logging.warning(
+                f"Node {self._idx}: supply node temperature higher than 95 °C"
+            )
+        if self._node_type != "supply":
+            logging.warning(f"Node {self._idx}: temperature set for a non supply node")
+        self.__boundary_temperature = value
+
     def get_supply_branches_unique_idx(self):
         return [
             branch._unique_matrix_idx
@@ -156,6 +202,16 @@ class Node:
             branch._unique_matrix_idx
             for k, branch in self._demand_branches_objects.items()
         ]
+
+    def get_supply_branches_mass_flow_rates(self):
+
+        array = np.array(
+            [
+                [int(branch._unique_matrix_idx), branch._mass_flow_rate]
+                for k, branch in self._supply_branches_objects.items()
+            ]
+        )
+        return array[:, 0].astype(int), array[:, 1]
 
     def distance_from_node(self, node_2):
         """
