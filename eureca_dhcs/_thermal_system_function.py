@@ -126,12 +126,11 @@ def thermal_balance_system_inverse(network, q, time_interval):
 
     AT = np.zeros(
         [
-            (network._branches_number * 2 + network._nodes_number),
-            (network._branches_number * 2 + network._nodes_number),
+            (network._branches_number + network._nodes_number),
+            (network._branches_number + network._nodes_number),
         ]
     )
-    # Add the branch exit temperature variable and known term
-    q = np.append(q, [0] * network._branches_number)
+    # q = np.append(q, [0] * network._branches_number)
 
     for node in network._nodes_object_ordered_list:
         if node._node_type == "supply":
@@ -142,13 +141,24 @@ def thermal_balance_system_inverse(network, q, time_interval):
                 supply_branch_id,
                 supply_branch,
             ) in node._supply_branches_objects.items():
-                total_entering_flow_rate += supply_branch._mass_flow_rate
-                AT[
-                    node._unique_matrix_idx,
-                    network._nodes_number
-                    + network._branches_number
-                    + supply_branch._unique_matrix_idx,
-                ] = supply_branch._mass_flow_rate
+                if supply_branch._mass_flow_rate >= 0:
+                    total_entering_flow_rate += supply_branch._mass_flow_rate
+                    AT[
+                        node._unique_matrix_idx,
+                        network._nodes_number + supply_branch._unique_matrix_idx,
+                    ] = supply_branch._mass_flow_rate
+            for (
+                demand_branch_id,
+                demand_branch,
+            ) in node._demand_branches_objects.items():
+                if demand_branch._mass_flow_rate < 0:
+                    total_entering_flow_rate += -1 * demand_branch._mass_flow_rate
+                    AT[
+                        node._unique_matrix_idx,
+                        network._nodes_number + demand_branch._unique_matrix_idx,
+                    ] = (
+                        -1 * demand_branch._mass_flow_rate
+                    )
             AT[node._unique_matrix_idx, node._unique_matrix_idx] = (
                 -1 * total_entering_flow_rate
             )
@@ -165,18 +175,28 @@ def thermal_balance_system_inverse(network, q, time_interval):
         else:
             supply_node = branch._supply_node_object
             demand_node = branch._demand_node_object
-        AT[line, supply_node._unique_matrix_idx] = -1 * G
-        AT[
-            line,
-            network._nodes_number
-            + network._branches_number
-            + branch._unique_matrix_idx,
-        ] = (
-            1 * G
+        AT[line, supply_node._unique_matrix_idx] = (
+            C / (2 * time_interval) - G + f_loss / 2
         )
-        AT[line, line] = C / time_interval + f_loss
-        # Equation for average between exit and entering temperatur
-        AT[line + network._branches_number, supply_node._unique_matrix_idx] = 1
-        AT[line + network._branches_number, line + network._branches_number] = 1
-        AT[line + network._branches_number, line] = -2
-    return np.linalg.solve(AT, q), AT, q
+        AT[line, line] = C / (2 * time_interval) + G + f_loss / 2
+        # # Equation for average between exit and entering temperatur
+        # AT[line + network._branches_number, supply_node._unique_matrix_idx] = 1
+        # AT[line + network._branches_number, line + network._branches_number] = 1
+        # AT[line + network._branches_number, line] = -2
+    x = np.linalg.solve(AT, q)
+
+    # Calc T average branch
+    t_branch = np.zeros(network._branches_number)
+    for branch in network._branches_object_ordered_list:
+        if branch._mass_flow_rate < 0:
+            supply_node = branch._demand_node_object
+        else:
+            supply_node = branch._supply_node_object
+        t_branch[branch._unique_matrix_idx] = (
+            x[supply_node._unique_matrix_idx]
+            + x[network._nodes_number + branch._unique_matrix_idx]
+        ) / 2
+    solution = np.hstack(
+        [x[: network._nodes_number], t_branch, x[network._nodes_number :]]
+    )
+    return solution, AT, q
