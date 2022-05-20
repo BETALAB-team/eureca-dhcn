@@ -328,11 +328,11 @@ class Network:
 
         nodes = boundaries["Hydraulic"]["Node"]["Mass flow rate [kg/s]"]
         nodes_dict = nodes.to_dict(orient="List")
+        nodes_dict = {str(k): np.array(node) for k, node in nodes_dict.items()}
         try:
             branches = boundaries["Hydraulic"]["Branch"]["Pump pressure raise [Pa]"]
             branches_dict = branches.to_dict(orient="List")
             # Just to convert in str and np.array
-            nodes_dict = {str(k): np.array(node) for k, node in nodes_dict.items()}
             branches_dict = {
                 str(k): np.array(branch) for k, branch in branches_dict.items()
             }
