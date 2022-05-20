@@ -136,6 +136,25 @@ class TestNodesBranches:
         )
 
 
+class TestSoil:
+    """
+    This is a test class for the pytest module.
+    It tests Soil class and its property
+    """
+
+    def test_soil(self):
+        soil = Soil()
+        t = np.zeros([365, 4])
+        for c, depth in enumerate([0, 0.5, 2, 4]):
+            for day in range(365):
+                t[day, c] = soil.get_soil_temperature(day, depth)
+        with open(
+            os.path.join("eureca_dhcs", "test", "ground", "t_ground.csv"), "w"
+        ) as t_ground:
+            t_ground.write("0 m, 0.5 m, 2 m, 4 m\n")
+            np.savetxt(t_ground, t, delimiter=",", fmt="%.2f")
+
+
 class TestNetwork:
     """
     This is a test class for the pytest module.

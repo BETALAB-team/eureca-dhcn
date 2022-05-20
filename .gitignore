@@ -1,6 +1,8 @@
-eureca-dhcs\create_net_json.py
-eureca-dhcs\script_prove.py
-eureca-dhcs\test_shapefile.py
-eureca-dhcs\network_config\.
+eureca-dhcs\test\output
+eureca-dhcs\test\output_ring
+eureca-dhcs\test\ground
+output
+output_ring
 .spyproject
 __pycache__
+.pytest_cache

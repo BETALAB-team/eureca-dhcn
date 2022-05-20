@@ -323,6 +323,7 @@ class Network:
             sheet_name=["Hydraulic", "Thermal"],
             index_col=0,
             header=[0, 1, 2],
+            parse_dates=True,
         )
 
         nodes = boundaries["Hydraulic"]["Node"]["Mass flow rate [kg/s]"]
@@ -342,6 +343,29 @@ class Network:
         nodes_dict = nodes.to_dict(orient="List")
         nodes_dict = {str(k): np.array(node) for k, node in nodes_dict.items()}
         self.load_thermal_boundary_conditions(nodes_dict, number_of_timesteps)
+
+        # DateTime Index
+        self.set_timestep_serie(boundaries["Hydraulic"].index)
+
+    def set_timestep_serie(self, series: pd.Series):
+        """
+        This method sets the timesteps array:
+        Please load a pandas series with datetime object.
+        It is necessary for ground calculation temeprature
+
+        Parameters
+        ----------
+        series: pd.Series
+
+        Returns
+        -------
+        None.
+        """
+        if not isinstance(series, pd.core.indexes.datetimes.DatetimeIndex):
+            raise TypeError(
+                f"You must provide a pandas Datetime index! Type provided: {type(series)}"
+            )
+        self.timestep_array = series
 
     def load_thermal_boundary_conditions(
         self,
@@ -574,7 +598,6 @@ class Network:
         #     method="hybr",
         # )
         ################################################################
-
         x, A, q = thermal_balance_system_inverse(self, q, time_interval)
         self._set_thermal_balance_results_vector(x)
 
@@ -665,11 +688,12 @@ class Network:
                 raise IndexError(
                     f"Node {node._idx}: selected timestep {timestep} longer than boundary conditions. "
                 )
-        for branch in self._branches_object_ordered_list:
+        day = self.timestep_array[timestep].dayofyear
 
+        for branch in self._branches_object_ordered_list:
+            T_ground = self._soil_obj.get_soil_temperature(day, branch._pipe_depth)
             C = branch.get_dynamic_capacity()
             f_loss = branch.ground_loss_factor
-            T_ground = self._soil_obj.get_soil_temperature()
 
             q.append(C * branch._branch_temperature / time_interval + f_loss * T_ground)
         return np.array(q)
