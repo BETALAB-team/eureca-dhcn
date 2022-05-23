@@ -30,7 +30,12 @@ from eureca_dhcs.exceptions import (
 
 class Network:
     def __init__(
-        self, nodes_dict: dict, branches_dict: dict, soil_obj: Soil, output_path=None
+        self,
+        nodes_dict: dict,
+        branches_dict: dict,
+        soil_obj: Soil,
+        output_path=None,
+        temperature_mode="Heating",
     ):
         """
         Creates a district water network starting from nodes and branches dictionaries
@@ -80,7 +85,8 @@ class Network:
         output_path: str
             path to where results are save. If it does not exist the tool creates it
 
-
+        temperature_mode: str
+            Choose between Heating and Cooling.
 
         Returns
         -------
@@ -100,7 +106,7 @@ class Network:
         # Creation of the nodes objects... THIS MUST BE DONE BEFORE THE CREATION OF BRANCHES
         self._create_nodes()
         # Creation of the branch objects... THIS MUST BE DONE BEFORE THE CREATION OF BRANCHES
-        self._create_branches()
+        self._create_branches(temperature_mode)
         # Couples nodes and branches objects
         self._couple_nodes_to_nodes()
         # DO IN ORDER
@@ -164,15 +170,27 @@ class Network:
             self._nodes_object_ordered_list.append(self._nodes_object_dict[node["id"]])
         self._nodes_number = int(len(self._nodes_object_dict.keys()))
 
-    def _create_branches(self):
+    def _create_branches(self, temperature_mode):
         """
         Creation and filling of the nodes object dictionary
+
+
+        Parameters
+        ----------
+        temperature_mode : str
+            Choose between Heating and Cooling.
+
+        Raises
+        ------
+        EmptyNetworkNodes
+            raises if the network has no nodes.
 
         Returns
         -------
         None.
 
         """
+
         if not self._nodes_object_dict:
             try:
                 self._create_nodes()
@@ -196,6 +214,7 @@ class Network:
                 insulation_conductivity=branch["insulation conductivity [W/(mK)]"],
                 nodes_objects_dict=self._nodes_object_dict,
                 soil_obj=self._soil_obj,
+                temperature_mode=temperature_mode,
             )
 
             if "pipe length [m]" in branch.keys():
@@ -862,7 +881,12 @@ class Network:
 
     @classmethod
     def from_shapefiles(
-        cls, nodes_file: str, branches_file: str, soil_obj: Soil, output_path=None
+        cls,
+        nodes_file: str,
+        branches_file: str,
+        soil_obj: Soil,
+        output_path=None,
+        temperature_mode="Heating",
     ):
         """
         Creates a district water network starting from GIS nodes and branches shapefile
@@ -950,4 +974,5 @@ class Network:
             branches_dict=branches_dict,
             soil_obj=soil_obj,
             output_path=output_path,
+            temperature_mode=temperature_mode,
         )
