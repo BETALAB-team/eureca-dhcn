@@ -1,57 +1,57 @@
-2022-05-20 16:28:00,070 - fiona.env - DEBUG - Entering env context: <fiona.env.Env object at 0x0000028990B16048>
-2022-05-20 16:28:00,071 - fiona.env - DEBUG - Starting outermost env
-2022-05-20 16:28:00,071 - fiona.env - DEBUG - No GDAL environment exists
-2022-05-20 16:28:00,071 - fiona.env - DEBUG - New GDAL environment <fiona._env.GDALEnv object at 0x0000028995292388> created
-2022-05-20 16:28:00,072 - fiona._env - DEBUG - GDAL_DATA found in environment.
-2022-05-20 16:28:00,072 - fiona._env - DEBUG - PROJ_LIB found in environment.
-2022-05-20 16:28:00,072 - fiona._env - DEBUG - Started GDALEnv: self=<fiona._env.GDALEnv object at 0x0000028995292388>.
-2022-05-20 16:28:00,073 - fiona.env - DEBUG - Updated existing <fiona._env.GDALEnv object at 0x0000028995292388> with options {}
-2022-05-20 16:28:00,073 - fiona.env - DEBUG - Entered env context: <fiona.env.Env object at 0x0000028990B16048>
-2022-05-20 16:28:00,093 - fiona.ogrext - DEBUG - Got coordinate system
-2022-05-20 16:28:00,093 - fiona.ogrext - DEBUG - OLC_FASTSETNEXTBYINDEX: 1
-2022-05-20 16:28:00,093 - fiona.ogrext - DEBUG - OLC_FASTFEATURECOUNT: 1
-2022-05-20 16:28:00,093 - fiona.ogrext - DEBUG - Next index: 0
-2022-05-20 16:28:00,093 - fiona.ogrext - DEBUG - Next index: 1
-2022-05-20 16:28:00,094 - fiona.ogrext - DEBUG - Next index: 2
-2022-05-20 16:28:00,094 - fiona.ogrext - DEBUG - Next index: 3
-2022-05-20 16:28:00,094 - fiona.ogrext - DEBUG - Next index: 4
-2022-05-20 16:28:00,094 - fiona.ogrext - DEBUG - Next index: 5
-2022-05-20 16:28:00,094 - fiona.ogrext - DEBUG - Next index: 6
-2022-05-20 16:28:00,097 - fiona.collection - DEBUG - Flushed buffer
-2022-05-20 16:28:00,097 - fiona.collection - DEBUG - Stopped session
-2022-05-20 16:28:00,097 - fiona.env - DEBUG - Exiting env context: <fiona.env.Env object at 0x0000028990B16048>
-2022-05-20 16:28:00,097 - fiona.env - DEBUG - Cleared existing <fiona._env.GDALEnv object at 0x0000028995292388> options
-2022-05-20 16:28:00,097 - fiona._env - DEBUG - Stopping GDALEnv <fiona._env.GDALEnv object at 0x0000028995292388>.
-2022-05-20 16:28:00,097 - fiona._env - DEBUG - Error handler popped.
-2022-05-20 16:28:00,097 - fiona._env - DEBUG - Stopped GDALEnv <fiona._env.GDALEnv object at 0x0000028995292388>.
-2022-05-20 16:28:00,098 - fiona.env - DEBUG - Exiting outermost env
-2022-05-20 16:28:00,098 - fiona.env - DEBUG - Exited env context: <fiona.env.Env object at 0x0000028990B16048>
-2022-05-20 16:28:00,098 - fiona.env - DEBUG - Entering env context: <fiona.env.Env object at 0x00000289952926C8>
-2022-05-20 16:28:00,098 - fiona.env - DEBUG - Starting outermost env
-2022-05-20 16:28:00,098 - fiona.env - DEBUG - No GDAL environment exists
-2022-05-20 16:28:00,098 - fiona.env - DEBUG - New GDAL environment <fiona._env.GDALEnv object at 0x0000028996D6F8C8> created
-2022-05-20 16:28:00,099 - fiona._env - DEBUG - GDAL_DATA found in environment.
-2022-05-20 16:28:00,099 - fiona._env - DEBUG - PROJ_LIB found in environment.
-2022-05-20 16:28:00,099 - fiona._env - DEBUG - Started GDALEnv: self=<fiona._env.GDALEnv object at 0x0000028996D6F8C8>.
-2022-05-20 16:28:00,099 - fiona.env - DEBUG - Updated existing <fiona._env.GDALEnv object at 0x0000028996D6F8C8> with options {}
-2022-05-20 16:28:00,099 - fiona.env - DEBUG - Entered env context: <fiona.env.Env object at 0x00000289952926C8>
-2022-05-20 16:28:00,101 - fiona.ogrext - DEBUG - Got coordinate system
-2022-05-20 16:28:00,102 - fiona.ogrext - DEBUG - OLC_FASTSETNEXTBYINDEX: 1
-2022-05-20 16:28:00,102 - fiona.ogrext - DEBUG - OLC_FASTFEATURECOUNT: 1
-2022-05-20 16:28:00,102 - fiona.ogrext - DEBUG - Next index: 0
-2022-05-20 16:28:00,102 - fiona.ogrext - DEBUG - Next index: 1
-2022-05-20 16:28:00,102 - fiona.ogrext - DEBUG - Next index: 2
-2022-05-20 16:28:00,102 - fiona.ogrext - DEBUG - Next index: 3
-2022-05-20 16:28:00,102 - fiona.ogrext - DEBUG - Next index: 4
-2022-05-20 16:28:00,102 - fiona.ogrext - DEBUG - Next index: 5
-2022-05-20 16:28:00,102 - fiona.ogrext - DEBUG - Next index: 6
-2022-05-20 16:28:00,103 - fiona.ogrext - DEBUG - Next index: 7
-2022-05-20 16:28:00,108 - fiona.collection - DEBUG - Flushed buffer
-2022-05-20 16:28:00,109 - fiona.collection - DEBUG - Stopped session
-2022-05-20 16:28:00,109 - fiona.env - DEBUG - Exiting env context: <fiona.env.Env object at 0x00000289952926C8>
-2022-05-20 16:28:00,109 - fiona.env - DEBUG - Cleared existing <fiona._env.GDALEnv object at 0x0000028996D6F8C8> options
-2022-05-20 16:28:00,109 - fiona._env - DEBUG - Stopping GDALEnv <fiona._env.GDALEnv object at 0x0000028996D6F8C8>.
-2022-05-20 16:28:00,109 - fiona._env - DEBUG - Error handler popped.
-2022-05-20 16:28:00,109 - fiona._env - DEBUG - Stopped GDALEnv <fiona._env.GDALEnv object at 0x0000028996D6F8C8>.
-2022-05-20 16:28:00,109 - fiona.env - DEBUG - Exiting outermost env
-2022-05-20 16:28:00,109 - fiona.env - DEBUG - Exited env context: <fiona.env.Env object at 0x00000289952926C8>
+2022-05-23 11:40:39,289 - fiona.env - DEBUG - Entering env context: <fiona.env.Env object at 0x0000016A5A053DC8>
+2022-05-23 11:40:39,290 - fiona.env - DEBUG - Starting outermost env
+2022-05-23 11:40:39,290 - fiona.env - DEBUG - No GDAL environment exists
+2022-05-23 11:40:39,290 - fiona.env - DEBUG - New GDAL environment <fiona._env.GDALEnv object at 0x0000016A5E781E48> created
+2022-05-23 11:40:39,291 - fiona._env - DEBUG - GDAL_DATA found in environment.
+2022-05-23 11:40:39,291 - fiona._env - DEBUG - PROJ_LIB found in environment.
+2022-05-23 11:40:39,291 - fiona._env - DEBUG - Started GDALEnv: self=<fiona._env.GDALEnv object at 0x0000016A5E781E48>.
+2022-05-23 11:40:39,291 - fiona.env - DEBUG - Updated existing <fiona._env.GDALEnv object at 0x0000016A5E781E48> with options {}
+2022-05-23 11:40:39,291 - fiona.env - DEBUG - Entered env context: <fiona.env.Env object at 0x0000016A5A053DC8>
+2022-05-23 11:40:39,318 - fiona.ogrext - DEBUG - Got coordinate system
+2022-05-23 11:40:39,318 - fiona.ogrext - DEBUG - OLC_FASTSETNEXTBYINDEX: 1
+2022-05-23 11:40:39,318 - fiona.ogrext - DEBUG - OLC_FASTFEATURECOUNT: 1
+2022-05-23 11:40:39,318 - fiona.ogrext - DEBUG - Next index: 0
+2022-05-23 11:40:39,318 - fiona.ogrext - DEBUG - Next index: 1
+2022-05-23 11:40:39,318 - fiona.ogrext - DEBUG - Next index: 2
+2022-05-23 11:40:39,318 - fiona.ogrext - DEBUG - Next index: 3
+2022-05-23 11:40:39,319 - fiona.ogrext - DEBUG - Next index: 4
+2022-05-23 11:40:39,319 - fiona.ogrext - DEBUG - Next index: 5
+2022-05-23 11:40:39,319 - fiona.ogrext - DEBUG - Next index: 6
+2022-05-23 11:40:39,322 - fiona.collection - DEBUG - Flushed buffer
+2022-05-23 11:40:39,322 - fiona.collection - DEBUG - Stopped session
+2022-05-23 11:40:39,322 - fiona.env - DEBUG - Exiting env context: <fiona.env.Env object at 0x0000016A5A053DC8>
+2022-05-23 11:40:39,322 - fiona.env - DEBUG - Cleared existing <fiona._env.GDALEnv object at 0x0000016A5E781E48> options
+2022-05-23 11:40:39,322 - fiona._env - DEBUG - Stopping GDALEnv <fiona._env.GDALEnv object at 0x0000016A5E781E48>.
+2022-05-23 11:40:39,322 - fiona._env - DEBUG - Error handler popped.
+2022-05-23 11:40:39,322 - fiona._env - DEBUG - Stopped GDALEnv <fiona._env.GDALEnv object at 0x0000016A5E781E48>.
+2022-05-23 11:40:39,322 - fiona.env - DEBUG - Exiting outermost env
+2022-05-23 11:40:39,323 - fiona.env - DEBUG - Exited env context: <fiona.env.Env object at 0x0000016A5A053DC8>
+2022-05-23 11:40:39,323 - fiona.env - DEBUG - Entering env context: <fiona.env.Env object at 0x0000016A5E77B308>
+2022-05-23 11:40:39,323 - fiona.env - DEBUG - Starting outermost env
+2022-05-23 11:40:39,323 - fiona.env - DEBUG - No GDAL environment exists
+2022-05-23 11:40:39,323 - fiona.env - DEBUG - New GDAL environment <fiona._env.GDALEnv object at 0x0000016A60251248> created
+2022-05-23 11:40:39,324 - fiona._env - DEBUG - GDAL_DATA found in environment.
+2022-05-23 11:40:39,324 - fiona._env - DEBUG - PROJ_LIB found in environment.
+2022-05-23 11:40:39,324 - fiona._env - DEBUG - Started GDALEnv: self=<fiona._env.GDALEnv object at 0x0000016A60251248>.
+2022-05-23 11:40:39,324 - fiona.env - DEBUG - Updated existing <fiona._env.GDALEnv object at 0x0000016A60251248> with options {}
+2022-05-23 11:40:39,324 - fiona.env - DEBUG - Entered env context: <fiona.env.Env object at 0x0000016A5E77B308>
+2022-05-23 11:40:39,325 - fiona.ogrext - DEBUG - Got coordinate system
+2022-05-23 11:40:39,325 - fiona.ogrext - DEBUG - OLC_FASTSETNEXTBYINDEX: 1
+2022-05-23 11:40:39,325 - fiona.ogrext - DEBUG - OLC_FASTFEATURECOUNT: 1
+2022-05-23 11:40:39,325 - fiona.ogrext - DEBUG - Next index: 0
+2022-05-23 11:40:39,325 - fiona.ogrext - DEBUG - Next index: 1
+2022-05-23 11:40:39,325 - fiona.ogrext - DEBUG - Next index: 2
+2022-05-23 11:40:39,325 - fiona.ogrext - DEBUG - Next index: 3
+2022-05-23 11:40:39,325 - fiona.ogrext - DEBUG - Next index: 4
+2022-05-23 11:40:39,325 - fiona.ogrext - DEBUG - Next index: 5
+2022-05-23 11:40:39,325 - fiona.ogrext - DEBUG - Next index: 6
+2022-05-23 11:40:39,326 - fiona.ogrext - DEBUG - Next index: 7
+2022-05-23 11:40:39,330 - fiona.collection - DEBUG - Flushed buffer
+2022-05-23 11:40:39,330 - fiona.collection - DEBUG - Stopped session
+2022-05-23 11:40:39,330 - fiona.env - DEBUG - Exiting env context: <fiona.env.Env object at 0x0000016A5E77B308>
+2022-05-23 11:40:39,330 - fiona.env - DEBUG - Cleared existing <fiona._env.GDALEnv object at 0x0000016A60251248> options
+2022-05-23 11:40:39,330 - fiona._env - DEBUG - Stopping GDALEnv <fiona._env.GDALEnv object at 0x0000016A60251248>.
+2022-05-23 11:40:39,330 - fiona._env - DEBUG - Error handler popped.
+2022-05-23 11:40:39,330 - fiona._env - DEBUG - Stopped GDALEnv <fiona._env.GDALEnv object at 0x0000016A60251248>.
+2022-05-23 11:40:39,330 - fiona.env - DEBUG - Exiting outermost env
+2022-05-23 11:40:39,330 - fiona.env - DEBUG - Exited env context: <fiona.env.Env object at 0x0000016A5E77B308>
