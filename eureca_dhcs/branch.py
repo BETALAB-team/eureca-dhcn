@@ -338,7 +338,7 @@ class Branch:
             value = float(value)
         except ValueError:
             raise TypeError(f"Branch {self._idx}, reinolds must be a float: {value}")
-        if value < 2300:
+        if np.abs(value) < 2300:
             logging.warning(
                 f"Branch {self._idx}, reinolds is going under 2300. Reinolds: {value}"
             )
