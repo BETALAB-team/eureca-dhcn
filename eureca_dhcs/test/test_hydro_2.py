@@ -27,7 +27,9 @@ boundaries = os.path.join(
 out_path = os.path.join("eureca_dhcs", "test", "output_test_hydro_2")
 
 soil = Soil()
-network = Network.from_shapefiles(path_nodes, path_lines, soil, output_path=out_path)
+network = Network.from_shapefiles(
+    path_nodes, path_lines, soil, output_path=out_path, temperature_mode="Cooling"
+)
 network.load_boundary_conditions_from_excel(boundaries, 2)
 
 # %%
@@ -35,3 +37,4 @@ for iteration in range(2):
     network.solve_hydraulic_balance(iteration)
     network.solve_thermal_balance(iteration, time_interval=3600)
 network.save_hydraulic_results()
+print(network._branches_object_dict["7"]._mass_flow_rate)

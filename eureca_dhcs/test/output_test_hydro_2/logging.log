@@ -1,2 +1,4 @@
-2022-05-23 11:59:19,904 - root - WARNING - Branch 7, friction_factor over 0.1: 0.8438123912678089 [-]. The hydraulic system can be unstable
-2022-05-23 11:59:19,952 - root - WARNING - Branch 7, friction_factor over 0.1: 3.767772272042694 [-]. The hydraulic system can be unstable
+2022-05-23 12:51:33,246 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 5.023589879872571
+2022-05-23 12:51:33,247 - root - WARNING - Branch 7, friction_factor over 0.1: 0.7771375299034571 [-]. The hydraulic system can be unstable
+2022-05-23 12:51:33,346 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 1.4158247893623366
+2022-05-23 12:51:33,346 - root - WARNING - Branch 7, friction_factor over 0.1: 4.934230685881915 [-]. The hydraulic system can be unstable
