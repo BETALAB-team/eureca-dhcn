@@ -324,6 +324,25 @@ class Branch:
             )
         self.__mass_flow_rate = value
         self._mass_flow_rate_array = np.append(self._mass_flow_rate_array, value)
+        self._reinolds_number = (
+            4 * value / (np.pi * self.get_dynamic_viscosity() * self._pipe_int_diameter)
+        )
+
+    @property
+    def _reinolds_number(self) -> float:
+        return self.__reinolds_number
+
+    @_reinolds_number.setter
+    def _reinolds_number(self, value: float):
+        try:
+            value = float(value)
+        except ValueError:
+            raise TypeError(f"Branch {self._idx}, reinolds must be a float: {value}")
+        if value < 2300:
+            logging.warning(
+                f"Branch {self._idx}, reinolds is going under 2300. Reinolds: {value}"
+            )
+        self.__reinolds_number = value
 
     @property
     def _friction_factor(self) -> float:
