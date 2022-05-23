@@ -577,7 +577,7 @@ class Network:
     def solve_hydraulic_balance(self, timestep: int):
         # Boundary condition
         q = self._generate_hydraulic_balance_boundary_condition(timestep)
-        if q[0 : self._nodes_number].sum() != 0:
+        if q[0 : self._nodes_number].sum() > 1e-10:
             raise ValueError(
                 f"Timestep {timestep}: input - output mass flow rates not equal. Mass balance cannot be solved"
             )
@@ -940,6 +940,11 @@ class Network:
                 "pipe conductivity [W/(mK)]": str(branch["p_l [W/mK]"]),
                 "insulation conductivity [W/(mK)]": str(branch["i_l [W/mK]"]),
             }
+            # add possible pipe lenght
+            if "lenght [m]" in branch.index:
+                branches_dict[branch["id"]]["pipe length [m]"] = str(
+                    branch["lenght [m]"]
+                )
         return cls(
             nodes_dict=nodes_dict,
             branches_dict=branches_dict,
