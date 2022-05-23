@@ -1,4 +1,10 @@
-2022-05-23 12:51:33,246 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 5.023589879872571
-2022-05-23 12:51:33,247 - root - WARNING - Branch 7, friction_factor over 0.1: 0.7771375299034571 [-]. The hydraulic system can be unstable
-2022-05-23 12:51:33,346 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 1.4158247893623366
-2022-05-23 12:51:33,346 - root - WARNING - Branch 7, friction_factor over 0.1: 4.934230685881915 [-]. The hydraulic system can be unstable
+2022-05-23 13:56:31,687 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 1814.4442038018176
+2022-05-23 13:56:31,729 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 1180.5653520346189
+2022-05-23 13:57:03,120 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 2091.88514510527
+2022-05-23 13:57:03,154 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 2009.411865642447
+2022-05-23 13:57:03,748 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 1996.2049115710508
+2022-05-23 13:57:03,780 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 1994.078980772729
+2022-05-23 13:57:04,125 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 1993.7363358572472
+2022-05-23 13:57:04,158 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 1993.6810977128582
+2022-05-23 13:57:04,503 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 1993.6721923703922
+2022-05-23 13:57:04,537 - root - WARNING - Branch 7, reinolds is going under 2300. Reinolds: 1993.6707566663777
