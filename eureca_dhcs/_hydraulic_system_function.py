@@ -131,6 +131,15 @@ def hydraulic_balance_system(x, q, network):
                     )
                 )
             )
+        elif np.abs(reinolds) < 640:
+            system.append(
+                x[
+                    network._branches_number
+                    + network._nodes_number
+                    + branch._unique_matrix_idx
+                ]
+                - 0.09
+            )
         else:
             system.append(
                 x[
