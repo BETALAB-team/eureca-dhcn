@@ -328,8 +328,6 @@ class Network:
         # calc the coupling nodes/branches matrix
         # Matrix -> n_nodes x n_branches
         connection_matrix = np.zeros([self._nodes_number, self._branches_number])
-        print(connection_matrix)
-        print(self._branches_object_dict.items())
         for branch_id, branch in self._branches_object_dict.items():
             column = branch._unique_matrix_idx
             connection_matrix[
