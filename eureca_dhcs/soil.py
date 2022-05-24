@@ -9,7 +9,7 @@ import logging
 
 import numpy as np
 
-from eureca_dhcs.exceptions import DuplicateBranch, WrongBranchTemperatureMode
+from eureca_dhcs.exceptions import DuplicateBranch, WrongTemperatureMode
 
 
 class Soil:
