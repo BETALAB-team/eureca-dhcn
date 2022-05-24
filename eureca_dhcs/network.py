@@ -104,7 +104,7 @@ class Network:
         self._nodes_object_ordered_list = []
         self._soil_obj = soil_obj
         # Creation of the nodes objects... THIS MUST BE DONE BEFORE THE CREATION OF BRANCHES
-        self._create_nodes()
+        self._create_nodes(temperature_mode)
         # Creation of the branch objects... THIS MUST BE DONE BEFORE THE CREATION OF BRANCHES
         self._create_branches(temperature_mode)
         # Couples nodes and branches objects
@@ -149,7 +149,7 @@ class Network:
         handler.setFormatter(formatter)  # Pass handler as a parameter, not assign
         root_logger.addHandler(handler)
 
-    def _create_nodes(self):
+    def _create_nodes(self, temperature_mode):
         """
         Creation and filling of the nodes object dictionary
 
@@ -166,6 +166,7 @@ class Network:
                 demand_nodes=node["demand nodes"],
                 x=node["x"],
                 y=node["y"],
+                temperature_mode=temperature_mode,
             )
             self._nodes_object_ordered_list.append(self._nodes_object_dict[node["id"]])
         self._nodes_number = int(len(self._nodes_object_dict.keys()))
@@ -193,7 +194,7 @@ class Network:
 
         if not self._nodes_object_dict:
             try:
-                self._create_nodes()
+                self._create_nodes(temperature_mode)
                 logging.warning(
                     "Network creation. Trying to create the nodes dictionary before the branches dictionary. To create branches dict you must have already create the nodes' dict"
                 )
