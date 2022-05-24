@@ -599,7 +599,6 @@ class Network:
 
     def solve_hydraulic_balance(self, timestep: int):
         # Boundary condition
-        print(f"\n############## timestep {timestep} ###########")
         q = self._generate_hydraulic_balance_boundary_condition(timestep)
         if q[0 : self._nodes_number].sum() > 1e-10:
             raise ValueError(
@@ -608,6 +607,7 @@ class Network:
         # First try vector
         x0 = self._generate_hydraulic_balance_starting_vector()
         x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
+        print(f"\n############## timestep {timestep} ###########")
         print(q[: self._nodes_number])
         print("x0: ", [f"{m:.2f}" for m in x0[: self._branches_number]])
         print("x: ", [f"{m:.2f}" for m in x0[: self._branches_number]])
