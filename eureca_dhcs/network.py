@@ -833,7 +833,7 @@ class Network:
         nodes_pressures_header = ""
         matrix = []
         for node_k, node in self._nodes_object_dict.items():
-            nodes_pressures_header += node_k + ", "
+            nodes_pressures_header += node_k + ","
             matrix.append(node._node_pressure_array)
         matrix = np.array(matrix).transpose()
         with open(os.path.join(self.output_path, "NodesPressures.csv"), "w") as nodes:
@@ -844,7 +844,7 @@ class Network:
         branches_pressures_header = ""
         matrix = []
         for branch_k, branch in self._branches_object_dict.items():
-            branches_pressures_header += branch_k + ", "
+            branches_pressures_header += branch_k + ","
             matrix.append(branch._mass_flow_rate_array)
         matrix = np.array(matrix).transpose()
         with open(
@@ -857,7 +857,7 @@ class Network:
         nodes_temperatures_header = ""
         matrix = []
         for node_k, node in self._nodes_object_dict.items():
-            nodes_temperatures_header += node_k + ", "
+            nodes_temperatures_header += node_k + ","
             matrix.append(node._node_temperature_array)
         matrix = np.array(matrix).transpose()
         with open(
@@ -870,7 +870,7 @@ class Network:
         branches_temperatures_header = ""
         matrix = []
         for branch_k, branch in self._branches_object_dict.items():
-            branches_temperatures_header += branch_k + ", "
+            branches_temperatures_header += branch_k + ","
             matrix.append(branch._branch_temperature_array)
         matrix = np.array(matrix).transpose()
         with open(
