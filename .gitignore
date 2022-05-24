@@ -1,5 +1,7 @@
 eureca-dhcs/test
 eureca-dhcs\test
+eureca-dhcs/test/*
+eureca-dhcs\test\*
 output
 output_ring
 .spyproject
