@@ -9,7 +9,7 @@ import logging
 
 import numpy as np
 
-from eureca_dhcs.exceptions import DuplicateBranch, WrongBranchTemperatureMode
+from eureca_dhcs.exceptions import DuplicateBranch, WrongTemperatureMode
 from eureca_dhcs.soil import Soil
 
 
@@ -99,7 +99,7 @@ class Branch:
             elif temperature_mode == "Cooling":
                 self._branch_temperature = self._cooling_starting_temperature
             else:
-                raise WrongBranchTemperatureMode(
+                raise WrongTemperatureMode(
                     f"Branch {self._idx}: temperature mode must be or Heating or Cooling. Temperature mode: {temperature_mode}"
                 )
         self._mass_flow_rate_array = np.array([])

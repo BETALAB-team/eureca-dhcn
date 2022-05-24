@@ -21,7 +21,7 @@ class DuplicateBranch(Exception):
     pass
 
 
-class WrongBranchTemperatureMode(Exception):
+class WrongTemperatureMode(Exception):
     pass
 
 

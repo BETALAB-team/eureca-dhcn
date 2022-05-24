@@ -9,7 +9,7 @@ import logging
 
 import numpy as np
 
-from eureca_dhcs.exceptions import DuplicateNode, WrongNodeType
+from eureca_dhcs.exceptions import DuplicateNode, WrongNodeType, WrongTemperatureMode
 
 
 class Node:
@@ -23,7 +23,8 @@ class Node:
     # This is used just for the first timestep,
     # then pressure of the previous timestep is used
     _starting_pressure = 10.0  # [Pa]
-    _starting_temperature = 50.0  # [Pa]
+    _cooling_starting_temperature = 15  # [°C]
+    _heating_starting_temperature = 55  # [°C]
 
     def __init__(
         self,
@@ -33,6 +34,8 @@ class Node:
         demand_nodes: list,
         x: float,
         y: float,
+        starting_temperature=None,  # [°C]
+        temperature_mode="Heating",
     ):
         """
 
@@ -51,6 +54,13 @@ class Node:
             x coordinate [m]
         y : float
             y coordinate [m]
+        starting_temperature : float
+            default: None
+            possible starting temperature [°C]
+        temperature_mode : float
+            default: Heating
+            temperature mode: choose between Heating or Cooling
+
 
         Returns
         -------
@@ -76,7 +86,18 @@ class Node:
         self._node_pressure_array = np.array([])
         self._node_pressure = self._starting_pressure  # [Pa]
         self._node_temperature_array = np.array([])
-        self._node_temperature = self._starting_temperature  # [Pa]
+        if starting_temperature != None:
+            # Default starting temperature
+            self._node_temperature = starting_temperature
+        else:
+            if temperature_mode == "Heating":
+                self._node_temperature = self._heating_starting_temperature
+            elif temperature_mode == "Cooling":
+                self._node_temperature = self._cooling_starting_temperature
+            else:
+                raise WrongTemperatureMode(
+                    f"Node {self._idx}: temperature mode must be or Heating or Cooling. Temperature mode: {temperature_mode}"
+                )
 
     @property
     def _idx(self) -> str:
