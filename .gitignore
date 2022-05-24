@@ -1,7 +1,5 @@
-eureca-dhcs/test
-eureca-dhcs\test
-eureca-dhcs/test/*
-eureca-dhcs\test\*
+eureca_dhcs\test\out*\
+eureca_dhcs\test\ground\
 output
 output_ring
 .spyproject
