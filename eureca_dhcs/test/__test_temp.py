@@ -13,6 +13,12 @@ import os
 from eureca_dhcs.network import Network
 from eureca_dhcs.soil import Soil
 
+# from ..network import Network
+# from ..soil import Soil
+
+time_int = 1
+n_timestep = 100
+
 path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "test_temp_1_lines.shp")
 path_nodes = os.path.join(
     "eureca_dhcs", "test", "input_tests", "test_temp_1_points.shp"
@@ -30,9 +36,9 @@ network = Network.from_shapefiles(
 )
 network.load_boundary_conditions_from_excel(boundaries, 600)
 
-for iteration in range(600):
+for iteration in range(4):
     network.solve_hydraulic_balance(iteration)
-    network.solve_thermal_balance(iteration, time_interval=3600)
+    # network.solve_thermal_balance(iteration, time_interval=time_int)
 network.save_results()
 
 # %% Test 2
@@ -56,16 +62,15 @@ network2.load_boundary_conditions_from_excel(boundaries, 600)
 
 for iteration in range(600):
     network2.solve_hydraulic_balance(iteration)
-    network2.solve_thermal_balance(iteration, time_interval=3600)
+    # network2.solve_thermal_balance(iteration, time_interval=time_int)
 network2.save_results()
 
 #%% Result
+out_path = os.path.join("eureca_dhcs", "test", "output_test_temp")
+out_path2 = os.path.join("eureca_dhcs", "test", "output_test_2_temp")
 
 import pandas as pd
 import matplotlib.pyplot as plt
-
-out_path = os.path.join("eureca_dhcs", "test", "output_test_temp")
-out_path2 = os.path.join("eureca_dhcs", "test", "output_test_2_temp")
 
 bp1 = pd.read_csv(os.path.join(out_path, "BranchMassFlowRates.csv"))
 nt1 = pd.read_csv(os.path.join(out_path, "NodesTemperatures.csv"))
@@ -75,7 +80,8 @@ bp2 = pd.read_csv(os.path.join(out_path2, "BranchMassFlowRates.csv"))
 nt2 = pd.read_csv(os.path.join(out_path2, "NodesTemperatures.csv"))
 bt2 = pd.read_csv(os.path.join(out_path2, "BranchTemperatures.csv"))
 
-n_timestep = 100
+last_t_nt1 = nt1.iloc[-1, -2]
+last_t_nt2 = nt2.iloc[-1, -2]
 
 bp1 = bp1[[col for col in bp1.columns if col.endswith("33")]].iloc[:n_timestep]
 bp2 = bp2[[col for col in bp2.columns if col.endswith("44")]].iloc[:n_timestep]
@@ -89,16 +95,14 @@ bt2 = bt2[[col for col in bt2.columns if col.endswith("44")]].iloc[:n_timestep]
 # line
 fig, [ax1, ax2] = plt.subplots(nrows=2, figsize=(15, 15))
 ax1.plot(
-    nt1[["133", "633", "1133"]].values,
-    label=["supply node", "central node", "demand node"],
+    nt1[["133", "233", "633", "1133"]].values,
+    label=["supply node", "second node", "central node", "demand node"],
 )
 ax1.plot(
     bt1[["133", "533", "1033"]].values,
     linestyle="-.",
     label=["supply branch", "central branch", "demand branch"],
 )
-ax1.legend()
-ax1.grid()
 
 ax2.plot(
     nt2.values,
@@ -109,5 +113,30 @@ ax2.plot(
     linestyle="-.",
     label=["supply branch 1", "supply branch 2", "demand branch"],
 )
-ax2.legend()
-ax2.grid()
+
+ax1.set_title("One line 10 segments test")
+ax2.set_title("Two branches in one test")
+ax1.text(
+    0.65,
+    0.25,
+    f"Final temperature last node (after 600 time steps):\n{last_t_nt1} °C",
+    horizontalalignment="center",
+    verticalalignment="center",
+    transform=ax1.transAxes,
+    bbox=dict(facecolor="white", alpha=0.99),
+)
+ax2.text(
+    0.65,
+    0.25,
+    f"Final temperature last node (after 600 time steps):\n{last_t_nt2} °C",
+    horizontalalignment="center",
+    verticalalignment="center",
+    transform=ax2.transAxes,
+    bbox=dict(facecolor="white", alpha=0.99),
+)
+
+for ax in [ax1, ax2]:
+    ax.legend()
+    ax.grid()
+    ax.set_ylabel("Temperature [°C]")
+    ax.set_xlabel(f"Timestep [{time_int} s]")
