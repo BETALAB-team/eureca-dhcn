@@ -1,7 +1,7 @@
-eureca-dhcs\test\output_tests
-eureca-dhcs\test\output_hydro_2
-eureca-dhcs\test\output*\
-eureca-dhcs\test\ground
+eureca-dhcs/test/output_tests
+eureca-dhcs/test/output_hydro_2
+eureca-dhcs/test/output*/
+eureca-dhcs/test/ground
 output
 output_ring
 .spyproject
