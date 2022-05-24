@@ -1,5 +1,6 @@
-eureca-dhcs\testoutput_tests
-eureca-dhcs\test\output_tests_ring
+eureca-dhcs\test\output_tests
+eureca-dhcs\test\output_hydro_2
+eureca-dhcs\test\output*
 eureca-dhcs\test\ground
 output
 output_ring

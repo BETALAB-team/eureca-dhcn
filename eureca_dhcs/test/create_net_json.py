@@ -6,52 +6,52 @@ import os
 import json
 
 nodes = {
-    "10": {
-        "id": "10",
+    "101": {
+        "id": "101",
         "node type": "supply",
         "x": -0.5,
         "y": 1.0,
         "supply nodes": [],
-        "demand nodes": ["12"],
+        "demand nodes": ["121"],
     },
-    "11": {
-        "id": "11",
+    "111": {
+        "id": "111",
         "node type": "supply",
         "x": -1,
         "y": 0.5,
         "supply nodes": [],
-        "demand nodes": ["12"],
+        "demand nodes": ["121"],
     },
-    "12": {
-        "id": "12",
+    "121": {
+        "id": "121",
         "node type": "disp",
         "x": 0,
         "y": 0,
-        "supply nodes": ["11"],
-        "demand nodes": ["13", "14"],
+        "supply nodes": ["111"],
+        "demand nodes": ["131", "141"],
     },
-    "13": {
-        "id": "13",
+    "131": {
+        "id": "131",
         "node type": "demand",
         "x": 1,
         "y": 0,
-        "supply nodes": ["12"],
+        "supply nodes": ["121"],
         "demand nodes": [],
     },
-    "14": {
-        "id": "14",
+    "141": {
+        "id": "141",
         "node type": "disp",
         "x": -0.5,
         "y": -0.5,
-        "supply nodes": ["12"],
-        "demand nodes": ["15"],
+        "supply nodes": ["121"],
+        "demand nodes": ["151"],
     },
-    "15": {
-        "id": "15",
+    "151": {
+        "id": "151",
         "node type": "demand",
         "x": 0,
         "y": -1,
-        "supply nodes": ["15"],
+        "supply nodes": ["151"],
         "demand nodes": [],
     },
 }
@@ -60,8 +60,8 @@ nodes = {
 branches = {
     "Z": {
         "id": "Z",
-        "supply node": "10",
-        "demand node": "12",
+        "supply node": "101",
+        "demand node": "121",
         "pipe ext diameter [m]": 0.3,
         "depth [m]": 0.8,
         "pipe thickness [m]": 0.02,
@@ -71,8 +71,8 @@ branches = {
     },
     "A": {
         "id": "A",
-        "supply node": "11",
-        "demand node": "12",
+        "supply node": "111",
+        "demand node": "121",
         "pipe ext diameter [m]": 0.3,
         "depth [m]": 0.8,
         "pipe thickness [m]": 0.02,
@@ -82,8 +82,8 @@ branches = {
     },
     "B": {
         "id": "B",
-        "supply node": "12",
-        "demand node": "13",
+        "supply node": "121",
+        "demand node": "131",
         "pipe ext diameter [m]": 0.3,
         "depth [m]": 0.8,
         "pipe thickness [m]": 0.02,
@@ -93,8 +93,8 @@ branches = {
     },
     "C": {
         "id": "C",
-        "supply node": "12",
-        "demand node": "14",
+        "supply node": "121",
+        "demand node": "141",
         "pipe ext diameter [m]": 0.3,
         "depth [m]": 0.8,
         "pipe thickness [m]": 0.02,
@@ -104,8 +104,8 @@ branches = {
     },
     "D": {
         "id": "D",
-        "supply node": "14",
-        "demand node": "15",
+        "supply node": "141",
+        "demand node": "151",
         "pipe ext diameter [m]": 0.3,
         "depth [m]": 0.8,
         "pipe thickness [m]": 0.02,
