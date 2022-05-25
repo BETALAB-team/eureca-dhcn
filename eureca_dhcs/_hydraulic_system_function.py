@@ -102,68 +102,68 @@ def hydraulic_balance_system(x, q, network):
         #         + network._nodes_numbes
         #         + branch._unique_matrix_idx
         #     ]
-        # reinolds = (
-        #     4
-        #     * x[branch._unique_matrix_idx]
-        #     / (np.pi * branch.get_dynamic_viscosity() * branch._pipe_int_diameter)
-        # )
-        # if np.abs(reinolds) > 2300:
-        system.append(
-            1
-            / np.sqrt(
+        reinolds = (
+            4
+            * x[branch._unique_matrix_idx]
+            / (np.pi * branch.get_dynamic_viscosity() * branch._pipe_int_diameter)
+        )
+        if np.abs(reinolds) > 2300:
+            system.append(
+                1
+                / np.sqrt(
+                    x[
+                        network._branches_number
+                        + network._nodes_number
+                        + branch._unique_matrix_idx
+                    ]
+                )
+                + 2
+                * np.log(
+                    branch._roughness / (3.7 * branch._pipe_int_diameter)
+                    + np.pi
+                    * 2.51
+                    * branch._pipe_int_diameter
+                    * branch.get_dynamic_viscosity()
+                    / (
+                        4
+                        * np.abs(x[branch._unique_matrix_idx])
+                        * np.sqrt(
+                            x[
+                                network._branches_number
+                                + network._nodes_number
+                                + branch._unique_matrix_idx
+                            ]
+                        )
+                    )
+                )
+            )
+        elif np.abs(reinolds) < 640:
+            system.append(
                 x[
                     network._branches_number
                     + network._nodes_number
                     + branch._unique_matrix_idx
                 ]
+                - 0.09
             )
-            + 2
-            * np.log(
-                branch._roughness / (3.7 * branch._pipe_int_diameter)
-                + np.pi
-                * 2.51
-                * branch._pipe_int_diameter
-                * branch.get_dynamic_viscosity()
+        else:
+            system.append(
+                x[
+                    network._branches_number
+                    + network._nodes_number
+                    + branch._unique_matrix_idx
+                ]
+                - 64
                 / (
                     4
-                    * np.abs(x[branch._unique_matrix_idx])
-                    * np.sqrt(
-                        x[
-                            network._branches_number
-                            + network._nodes_number
-                            + branch._unique_matrix_idx
-                        ]
+                    * x[branch._unique_matrix_idx]
+                    / (
+                        np.pi
+                        * branch.get_dynamic_viscosity()
+                        * branch._pipe_int_diameter
                     )
                 )
             )
-        )
-        # elif np.abs(reinolds) < 640:
-        #     system.append(
-        #         x[
-        #             network._branches_number
-        #             + network._nodes_number
-        #             + branch._unique_matrix_idx
-        #         ]
-        #         - 0.09
-        #     )
-        # else:
-        #     system.append(
-        #         x[
-        #             network._branches_number
-        #             + network._nodes_number
-        #             + branch._unique_matrix_idx
-        #         ]
-        #         - 64
-        #         / (
-        #             4
-        #             * x[branch._unique_matrix_idx]
-        #             / (
-        #                 np.pi
-        #                 * branch.get_dynamic_viscosity()
-        #                 * branch._pipe_int_diameter
-        #             )
-        #         )
-        #     )
     system.append(
         x[network._branches_number + network._nodes_number - 1]
         - q[network._branches_number + network._nodes_number - 1]
