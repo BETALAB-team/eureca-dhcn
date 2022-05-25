@@ -607,16 +607,16 @@ class Network:
         # First try vector
         x0 = self._generate_hydraulic_balance_starting_vector()
         x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
-        # print(f"\n############## timestep {timestep} ###########")
-        # # print("m0: ", [f"{m:.2f}" for m in x0[: self._branches_number]])
+        print(f"\n############## timestep {timestep} ###########")
+        # print("m0: ", [f"{m:.2f}" for m in x0[: self._branches_number]])
         # # print("f0: ", [f"{f:.4f}" for f in x0[-self._branches_number :]])
         # # print(
         # #     "p0: ",
         # #     [f"{f:.0f}" for f in x0[self._nodes_number : -self._branches_number]],
         # # )
-        # print(q[: self._nodes_number])
-        # print("m: ", [f"{m:.2f}" for m in x.x[: self._branches_number]])
-        # print("f: ", [f"{f*100:.4f}" for f in x.x[-self._branches_number :]])
+        print(q[: self._nodes_number])
+        print("m: ", [f"{m:.2f}" for m in x.x[: self._branches_number]])
+        print("f: ", [f"{f*100:.4f}" for f in x.x[-self._branches_number :]])
 
         # print(
         #     "p: ",
@@ -683,13 +683,19 @@ class Network:
 
         """
         branches_mass_flow_rates = np.array(
-            [branch._mass_flow_rate for branch in self._branches_object_ordered_list]
+            [
+                Branch._starting_mass_flow_rate
+                for branch in self._branches_object_ordered_list
+            ]
         )
         nodes_pressures = np.array(
-            [node._node_pressure for node in self._nodes_object_ordered_list]
+            [Node._starting_pressure for node in self._nodes_object_ordered_list]
         )
         branches_friction_factors = np.array(
-            [branch._friction_factor for branch in self._branches_object_ordered_list]
+            [
+                Branch._starting_friction_factor
+                for branch in self._branches_object_ordered_list
+            ]
         )
         return np.hstack(
             [branches_mass_flow_rates, nodes_pressures, branches_friction_factors]
