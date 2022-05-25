@@ -682,14 +682,29 @@ class Network:
             array with the first try value [mass_flow_rates, pressures, f_factors].
 
         """
+        # branches_mass_flow_rates = np.array(
+        #     [
+        #         Branch._starting_mass_flow_rate
+        #         for branch in self._branches_object_ordered_list
+        #     ]
+        # )
+        # nodes_pressures = np.array(
+        #     [Node._starting_pressure for node in self._nodes_object_ordered_list]
+        # )
+        # branches_friction_factors = np.array(
+        #     [
+        #         Branch._starting_friction_factor
+        #         for branch in self._branches_object_ordered_list
+        #     ]
+        # )
         branches_mass_flow_rates = np.array(
             [
-                Branch._starting_mass_flow_rate
+                branch._mass_flow_rate + 1.0
                 for branch in self._branches_object_ordered_list
             ]
         )
         nodes_pressures = np.array(
-            [Node._starting_pressure for node in self._nodes_object_ordered_list]
+            [node._node_pressure + 10.0 for node in self._nodes_object_ordered_list]
         )
         branches_friction_factors = np.array(
             [

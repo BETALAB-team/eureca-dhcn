@@ -28,7 +28,7 @@ network.load_boundary_conditions_from_excel(boundaries, 100)
 
 # Risolvere problema roughness!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # %%
-for iteration in range(14):
+for iteration in range(20):
     x = network.solve_hydraulic_balance(iteration)
 network.save_hydraulic_results()
 
