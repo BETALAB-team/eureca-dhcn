@@ -607,12 +607,21 @@ class Network:
         # First try vector
         x0 = self._generate_hydraulic_balance_starting_vector()
         x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
-        print(f"\n############## timestep {timestep} ###########")
-        print(q[: self._nodes_number])
-        print("m0: ", [f"{m:.2f}" for m in x0[: self._branches_number]])
-        print("m: ", [f"{m:.2f}" for m in x.x[: self._branches_number]])
-        print("f0: ", [f"{f:.4f}" for f in x0[-self._branches_number :]])
-        print("f: ", [f"{f:.4f}" for f in x.x[-self._branches_number :]])
+        # print(f"\n############## timestep {timestep} ###########")
+        # # print("m0: ", [f"{m:.2f}" for m in x0[: self._branches_number]])
+        # # print("f0: ", [f"{f:.4f}" for f in x0[-self._branches_number :]])
+        # # print(
+        # #     "p0: ",
+        # #     [f"{f:.0f}" for f in x0[self._nodes_number : -self._branches_number]],
+        # # )
+        # print(q[: self._nodes_number])
+        # print("m: ", [f"{m:.2f}" for m in x.x[: self._branches_number]])
+        # print("f: ", [f"{f*100:.4f}" for f in x.x[-self._branches_number :]])
+
+        # print(
+        #     "p: ",
+        #     [f"{f:.3f}" for f in x.x[self._nodes_number : -self._branches_number]],
+        # )
         self._set_hydraulic_balance_results_vector(x.x)
         return x.x, q, x0
 

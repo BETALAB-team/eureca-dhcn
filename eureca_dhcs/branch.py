@@ -157,6 +157,10 @@ class Branch:
             )
         if value > 2.0:
             logging.warning(f"Branch {self._idx}, pipe diameter very high: {value} [m]")
+        if value < 0.1:
+            logging.warning(
+                f"Branch {self._idx}, pipe internal diameter very low: {value} [m]. Hydraulic system can be unstable"
+            )
         self.__pipe_int_diameter = value
 
     @property

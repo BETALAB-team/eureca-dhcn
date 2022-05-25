@@ -36,9 +36,9 @@ network = Network.from_shapefiles(
 )
 network.load_boundary_conditions_from_excel(boundaries, 600)
 
-for iteration in range(4):
+for iteration in range(600):
     network.solve_hydraulic_balance(iteration)
-    # network.solve_thermal_balance(iteration, time_interval=time_int)
+    network.solve_thermal_balance(iteration, time_interval=time_int)
 network.save_results()
 
 # %% Test 2
@@ -62,7 +62,7 @@ network2.load_boundary_conditions_from_excel(boundaries, 600)
 
 for iteration in range(600):
     network2.solve_hydraulic_balance(iteration)
-    # network2.solve_thermal_balance(iteration, time_interval=time_int)
+    network2.solve_thermal_balance(iteration, time_interval=time_int)
 network2.save_results()
 
 #%% Result
@@ -93,7 +93,7 @@ bt1 = bt1[[col for col in bt1.columns if col.endswith("33")]].iloc[:n_timestep]
 bt2 = bt2[[col for col in bt2.columns if col.endswith("44")]].iloc[:n_timestep]
 
 # line
-fig, [ax1, ax2] = plt.subplots(nrows=2, figsize=(15, 15))
+fig, [[ax1, ax3], [ax2, ax4]] = plt.subplots(nrows=2, ncols=2, figsize=(15, 25))
 ax1.plot(
     nt1[["133", "233", "633", "1133"]].values,
     label=["supply node", "second node", "central node", "demand node"],
@@ -114,8 +114,22 @@ ax2.plot(
     label=["supply branch 1", "supply branch 2", "demand branch"],
 )
 
+ax3.plot(
+    bp1[["133", "533", "1033"]].values,
+    linestyle="-.",
+    label=["supply branch", "central branch", "demand branch"],
+)
+
+ax4.plot(
+    bp2.values,
+    linestyle="-.",
+    label=["supply branch 1", "supply branch 2", "demand branch"],
+)
+
 ax1.set_title("One line 10 segments test")
 ax2.set_title("Two branches in one test")
+ax3.set_title("One line 10 segments test")
+ax4.set_title("Two branches in one test")
 ax1.text(
     0.65,
     0.25,
@@ -134,9 +148,32 @@ ax2.text(
     transform=ax2.transAxes,
     bbox=dict(facecolor="white", alpha=0.99),
 )
+# ax3.text(
+#     0.65,
+#     0.25,
+#     f"Branches mass flow rate (after 600 time steps)",
+#     horizontalalignment="center",
+#     verticalalignment="center",
+#     transform=ax1.transAxes,
+#     bbox=dict(facecolor="white", alpha=0.99),
+# )
+# ax2.text(
+#     0.65,
+#     0.25,
+#     f"Branches mass flow rate (after 600 time steps)",
+#     horizontalalignment="center",
+#     verticalalignment="center",
+#     transform=ax2.transAxes,
+#     bbox=dict(facecolor="white", alpha=0.99),
+# )
 
 for ax in [ax1, ax2]:
     ax.legend()
     ax.grid()
     ax.set_ylabel("Temperature [°C]")
+    ax.set_xlabel(f"Timestep [{time_int} s]")
+for ax in [ax3, ax4]:
+    ax.legend()
+    ax.grid()
+    ax.set_ylabel("Mass flow rate [kg/s]")
     ax.set_xlabel(f"Timestep [{time_int} s]")

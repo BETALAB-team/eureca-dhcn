@@ -27,3 +27,9 @@ network.load_boundary_conditions_from_excel(boundaries, 100)
 for iteration in range(10):
     x = network.solve_hydraulic_balance(iteration)
 network.save_hydraulic_results()
+
+
+for branch in network._branches_object_ordered_list:
+    print(f"Branch {branch._idx}")
+    print(f"\text diameter [m]: {branch._pipe_ext_diameter}")
+    print(f"\tint diameter [m]: {branch._pipe_int_diameter}")

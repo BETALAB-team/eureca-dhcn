@@ -1,0 +1,1890 @@
+diff --git a/eureca_dhcs/_hydraulic_system_function.py b/eureca_dhcs/_hydraulic_system_function.py
+index 2bcb127..b6c7ecd 100644
+--- a/eureca_dhcs/_hydraulic_system_function.py
++++ b/eureca_dhcs/_hydraulic_system_function.py
+@@ -86,7 +86,7 @@ def hydraulic_balance_system(x, q, network):
+             * x[branch._unique_matrix_idx] ** 2
+             * 8
+             * branch._pipe_len
+-            / (np.pi**2 * branch._pipe_diameter**5 * branch.get_density())
++            / (np.pi**2 * branch._pipe_int_diameter**5 * branch.get_density())
+         )
+ 
+         # Colebrook - White equation for each branch
+@@ -96,6 +96,12 @@ def hydraulic_balance_system(x, q, network):
+         #         + network._nodes_numbes
+         #         + branch._unique_matrix_idx
+         #     ]
++        # reinolds = (
++        #     4
++        #     * x[branch._unique_matrix_idx]
++        #     / (np.pi * branch.get_dynamic_viscosity() * branch._pipe_int_diameter)
++        # )
++        # if reinolds > 2300:
+         system.append(
+             1
+             / np.sqrt(
+@@ -107,10 +113,10 @@ def hydraulic_balance_system(x, q, network):
+             )
+             + 2
+             * np.log(
+-                branch._roughness / (3.7 * branch._pipe_diameter)
++                branch._roughness / (3.7 * branch._pipe_int_diameter)
+                 + np.pi
+                 * 2.51
+-                * branch._pipe_diameter
++                * branch._pipe_int_diameter
+                 * branch.get_dynamic_viscosity()
+                 / (
+                     4
+@@ -125,6 +131,20 @@ def hydraulic_balance_system(x, q, network):
+                 )
+             )
+         )
++        # else:
++        #     system.append(
++        #         x[
++        #             network._branches_number
++        #             + network._nodes_number
++        #             + branch._unique_matrix_idx
++        #         ]
++        #         - 64
++        #         / (
++        #             4
++        #             * x[branch._unique_matrix_idx]
++        #             / (np.pi * branch.get_dynamic_viscosity() * branch._pipe_int_diameter)
++        #         )
++        #     )
+     system.append(
+         x[network._branches_number + network._nodes_number - 1]
+         - q[network._branches_number + network._nodes_number - 1]
+diff --git a/eureca_dhcs/_thermal_system_function.py b/eureca_dhcs/_thermal_system_function.py
+new file mode 100644
+index 0000000..df1610d
+--- /dev/null
++++ b/eureca_dhcs/_thermal_system_function.py
+@@ -0,0 +1,168 @@
++"""
++This script include the function that builds the thermal system
++to pass to  scipy.optimize.fsolve
++or np.linalg.solve
++"""
++
++__author__ = "Enrico Prataviera"
++__credits__ = ["Enrico Prataviera"]
++__license__ = "MIT"
++__version__ = "0.1"
++__maintainer__ = "Enrico Prataviera"
++
++import numpy as np
++
++
++def thermal_balance_system_optimization(x, q, network, time_interval):
++    """
++    DO NOT USE! WRONG RESULTS
++    This function builds the thermal system for the solution with f solve:
++
++    The equation are:
++        n_nodes equations: the mixing balances for each node
++        n_branch equations: the energy balance equation of each branch
++
++    The unknown variable are (x vector):
++
++        n_branches temperatures [°C]n_nodes temperatures [°C]
++
++    The known values are (q vector):
++        supply nodes entering temperature [°C]
++        branches capacity previous timestep term and ground loss term
++
++
++    Parameters
++    ----------
++    x : np.array
++        array with the first try value [nodes_temperatures, branches_temperatures].
++    q : np.array
++        boundary conditions [nodes_temperatures, branches capacity and ground loss term].
++    network : Network
++        network object. This is used to manage the index of the matrix with respect to branches and nodes objects.
++    time_interval: int
++        number of seconds per each timestep
++
++    Returns
++    -------
++    system : List
++        Use this function in an fsolve/root.
++
++    """
++
++    # System id the list where equations are inserted
++    system = []
++    # node balances
++    # This equations are the mass balance for each node
++    i = 0
++    for node in network._nodes_object_ordered_list:
++        if node._node_type == "supply":
++            # known condition
++            system.append(x[node._unique_matrix_idx] - q[node._unique_matrix_idx])
++        else:
++            (
++                branches_idx,
++                brnaches_mass_flow,
++            ) = node.get_supply_branches_mass_flow_rates()
++            total = brnaches_mass_flow.sum()
++            vector = np.zeros(network._nodes_number + network._branches_number)
++            vector[branches_idx + network._nodes_number] = brnaches_mass_flow
++            vector[node._unique_matrix_idx] = -1 * total
++            system.append(np.dot(vector, x))
++    for branch in network._branches_object_ordered_list:
++        G = branch._mass_flow_rate * branch.get_specific_heat()
++        C = branch.get_dynamic_capacity()
++        f_loss = branch.ground_loss_factor
++        # to manage negative mass flow rates
++        G = np.abs(G)
++        if branch._mass_flow_rate < 0:
++            supply_node = branch._demand_node_object
++            demand_node = branch._supply_node_object
++        else:
++            supply_node = branch._supply_node_object
++            demand_node = branch._demand_node_object
++        system.append(
++            -1 * G * x[supply_node._unique_matrix_idx]
++            + x[branch._unique_matrix_idx + network._nodes_number]
++            * (C / time_interval + f_loss + 1 * G)
++            + 0 * G * x[demand_node._unique_matrix_idx]
++            + q[branch._unique_matrix_idx + network._nodes_number]
++        )
++    return system
++
++
++def thermal_balance_system_inverse(network, q, time_interval):
++    """
++    This function solve the linear system Ax=q for the thermal balance:
++
++    The equation are:
++        n_nodes equations: the mixing balances for each node
++        n_branch equations: the energy balance equation of each branch
++
++    The unknown variable are (x vector):
++        n_branches temperatures [°C]n_nodes temperatures [°C]
++
++    The known values are (q vector):
++        supply nodes entering temperature [°C]
++        branches capacity previous timestep term and ground loss term
++
++
++    Parameters
++    ----------
++    q : np.array
++        boundary conditions [nodes_temperatures, branches capacity and ground loss term].
++    network : Network
++        network object. This is used to manage the index of the matrix with respect to branches and nodes objects.
++    time_interval: int
++        number of seconds per each timestep
++
++    Returns
++    -------
++    x : np.array
++        array with the solution [nodes_temperatures, branches_temperatures].
++
++    """
++
++    # Problema Termico
++    # TODO Cambiare formula del bilancio di ramo
++
++    AT = np.zeros(
++        [
++            (network._branches_number + network._nodes_number),
++            (network._branches_number + network._nodes_number),
++        ]
++    )
++
++    for node in network._nodes_object_ordered_list:
++        if node._node_type == "supply":
++            AT[node._unique_matrix_idx, node._unique_matrix_idx] = 1
++        else:
++            total_entering_flow_rate = 0.0
++            for (
++                supply_branch_id,
++                supply_branch,
++            ) in node._supply_branches_objects.items():
++                total_entering_flow_rate += supply_branch._mass_flow_rate
++                AT[
++                    node._unique_matrix_idx,
++                    network._nodes_number + supply_branch._unique_matrix_idx,
++                ] = supply_branch._mass_flow_rate
++            AT[node._unique_matrix_idx, node._unique_matrix_idx] = (
++                -1 * total_entering_flow_rate
++            )
++    for branch in network._branches_object_ordered_list:
++        line = network._nodes_number + branch._unique_matrix_idx
++        G = branch._mass_flow_rate * branch.get_specific_heat()
++        C = branch.get_dynamic_capacity()
++        f_loss = branch.ground_loss_factor
++        # to manage negative mass flow rates
++        G = np.abs(G)
++        if branch._mass_flow_rate < 0:
++            supply_node = branch._demand_node_object
++            demand_node = branch._supply_node_object
++        else:
++            supply_node = branch._supply_node_object
++            demand_node = branch._demand_node_object
++        AT[line, supply_node._unique_matrix_idx] = -1 * G
++        AT[line, demand_node._unique_matrix_idx] = 1 * G * 0
++        AT[line, line] = C / time_interval + G * 1 + f_loss
++    return np.linalg.solve(AT, q), AT, q
+diff --git a/eureca_dhcs/branch.py b/eureca_dhcs/branch.py
+index ff05ebc..a9513d6 100644
+--- a/eureca_dhcs/branch.py
++++ b/eureca_dhcs/branch.py
+@@ -10,6 +10,7 @@ import logging
+ import numpy as np
+ 
+ from eureca_dhcs.exceptions import DuplicateBranch, WrongBranchTemperatureMode
++from eureca_dhcs.soil import Soil
+ 
+ 
+ class Branch:
+@@ -22,9 +23,9 @@ class Branch:
+     _counter = 0
+     # this values are use just for the first timestep calculation
+     _cooling_starting_temperature = 15  # [°C]
+-    _heating_starting_temperature = 80  # [°C]
++    _heating_starting_temperature = 55  # [°C]
+     _starting_mass_flow_rate = 50  # [kg/s]
+-    _starting_friction_factor = 0.02  # [-]
++    _starting_friction_factor = 0.001  # [-]
+     # Darcy-Weissback equation
+     # The friction factor MUST be around this value to make the hydraulic balanc stable
+ 
+@@ -33,17 +34,30 @@ class Branch:
+         idx: str,
+         supply_node: str,
+         demand_node: str,
+-        pipe_diameter: float,  # [m]
++        pipe_ext_diameter: float,  # [m]
++        pipe_thickness: float,  # [m]
++        pipe_depth: float,  # [m]
++        insulation_thickness: float,  # [m]
++        pipe_conductivity: float,  # [W/(m/K)]
++        insulation_conductivity: float,  # [m]
+         pipe_len=None,  # [m]
+         roughness=None,  # [-]
+         starting_temperature=None,  # [°C]
+         nodes_objects_dict=None,
++        soil_obj=None,
+         temperature_mode="Heating",
+     ):
+         self._idx = idx
+         self._supply_node_idx = supply_node
+         self._demand_node_idx = demand_node
+-        self._pipe_diameter = pipe_diameter
++        self._pipe_thickness = pipe_thickness
++        self._pipe_ext_diameter = pipe_ext_diameter  ##############################
++        self._pipe_int_diameter = self._pipe_ext_diameter - 2 * self._pipe_thickness
++        self._pipe_depth = pipe_depth
++        # Other properties
++        self._insulation_thickness = insulation_thickness
++        self._pipe_conductivity = pipe_conductivity
++        self._insulation_conductivity = insulation_conductivity
+ 
+         # Check if pipe len is passed
+         if pipe_len == None:
+@@ -70,9 +84,11 @@ class Branch:
+         self._unique_matrix_idx = Branch._counter
+         Branch._counter += 1
+         # Other useful properties
+-        self._perimeter = self._pipe_diameter * math.pi
++        self._perimeter = self._pipe_ext_diameter * math.pi
+         self._external_area = self._perimeter * self._pipe_len
++        self._volume = self._pipe_int_diameter**2 / 4 * np.pi * self._pipe_len
+ 
++        self._branch_temperature_array = np.array([])
+         # Set some values for the dynamic simulation
+         if starting_temperature != None:
+             # Default starting temperature
+@@ -89,6 +105,8 @@ class Branch:
+         self._mass_flow_rate_array = np.array([])
+         self._mass_flow_rate = self._starting_mass_flow_rate
+         self._friction_factor = self._starting_friction_factor
++        if soil_obj != None:
++            self.calc_ground_loss_factor(soil_obj)
+ 
+     @property
+     def _idx(self) -> str:
+@@ -106,11 +124,11 @@ class Branch:
+         self.__idx = value
+ 
+     @property
+-    def _pipe_diameter(self) -> float:
+-        return self.__pipe_diameter
++    def _pipe_ext_diameter(self) -> float:
++        return self.__pipe_ext_diameter
+ 
+-    @_pipe_diameter.setter
+-    def _pipe_diameter(self, value: float):
++    @_pipe_ext_diameter.setter
++    def _pipe_ext_diameter(self, value: float):
+         try:
+             value = float(value)
+         except ValueError:
+@@ -119,14 +137,14 @@ class Branch:
+             )
+         if value > 2.0:
+             logging.warning(f"Branch {self._idx}, pipe diameter very high: {value} [m]")
+-        self.__pipe_diameter = value
++        self.__pipe_ext_diameter = value
+ 
+     @property
+-    def _pipe_diameter(self) -> float:
+-        return self.__pipe_diameter
++    def _pipe_int_diameter(self) -> float:
++        return self.__pipe_int_diameter
+ 
+-    @_pipe_diameter.setter
+-    def _pipe_diameter(self, value: float):
++    @_pipe_int_diameter.setter
++    def _pipe_int_diameter(self, value: float):
+         try:
+             value = float(value)
+         except ValueError:
+@@ -139,7 +157,109 @@ class Branch:
+             )
+         if value > 2.0:
+             logging.warning(f"Branch {self._idx}, pipe diameter very high: {value} [m]")
+-        self.__pipe_diameter = value
++        self.__pipe_int_diameter = value
++
++    @property
++    def _pipe_thickness(self) -> float:
++        return self.__pipe_thickness
++
++    @_pipe_thickness.setter
++    def _pipe_thickness(self, value: float):
++        try:
++            value = float(value)
++        except ValueError:
++            raise TypeError(
++                f"Branch {self._idx}, pipe thickness must be a float: {value}"
++            )
++        if value < 0.0:
++            raise ValueError(
++                f"Branch {self._idx}, pipe diameter negative pipe diameter: {value} [m]"
++            )
++        if value > 0.1:
++            logging.warning(
++                f"Branch {self._idx}, pipe thickness very high: {value} [m]"
++            )
++        self.__pipe_thickness = value
++
++    @property
++    def _pipe_depth(self) -> float:
++        return self.__pipe_depth
++
++    @_pipe_depth.setter
++    def _pipe_depth(self, value: float):
++        try:
++            value = float(value)
++        except ValueError:
++            raise TypeError(f"Branch {self._idx}, pipe depth must be a float: {value}")
++        if value > 10.0:
++            logging.warning(f"Branch {self._idx}, pipe depth very high: {value} [m]")
++        self.__pipe_depth = value
++
++    @property
++    def _insulation_thickness(self) -> float:
++        return self.__insulation_thickness
++
++    @_insulation_thickness.setter
++    def _insulation_thickness(self, value: float):
++        try:
++            value = float(value)
++        except ValueError:
++            raise TypeError(
++                f"Branch {self._idx}, insulation thickness must be a float: {value}"
++            )
++        if value < 0.0:
++            raise ValueError(
++                f"Branch {self._idx}, insulation thickness negative: {value} [m]"
++            )
++        if value > 0.1:
++            logging.warning(
++                f"Branch {self._idx}, insulation thickness very high: {value} [m]"
++            )
++        self.__insulation_thickness = value
++
++    @property
++    def _pipe_conductivity(self) -> float:
++        return self.__pipe_conductivity
++
++    @_pipe_conductivity.setter
++    def _pipe_conductivity(self, value: float):
++        try:
++            value = float(value)
++        except ValueError:
++            raise TypeError(
++                f"Branch {self._idx}, pipe conductivity must be a float: {value}"
++            )
++        if value < 0.0:
++            raise ValueError(
++                f"Branch {self._idx}, pipe conductivity negative: {value} [m]"
++            )
++        if value > 100:
++            logging.warning(
++                f"Branch {self._idx}, pipe conductivity very high: {value} [m]"
++            )
++        self.__pipe_conductivity = value
++
++    @property
++    def _insulation_conductivity(self) -> float:
++        return self.__insulation_conductivity
++
++    @_insulation_conductivity.setter
++    def _insulation_conductivity(self, value: float):
++        try:
++            value = float(value)
++        except ValueError:
++            raise TypeError(
++                f"Branch {self._idx}, insulation conductivity must be a float: {value}"
++            )
++        if value < 0.0:
++            raise ValueError(
++                f"Branch {self._idx}, insulation conductivity negative: {value} [m]"
++            )
++        if value > 10:
++            logging.warning(
++                f"Branch {self._idx}, insulation conductivity very high: {value} [m]"
++            )
++        self.__insulation_conductivity = value
+ 
+     @property
+     def _pipe_len(self) -> float:
+@@ -186,6 +306,9 @@ class Branch:
+         if value < 2.0:
+             logging.warning(f"Branch {self._idx}, temperature very low: {value} [°C]")
+         self.__branch_temperature = value
++        self._branch_temperature_array = np.append(
++            self._branch_temperature_array, value
++        )
+ 
+     @property
+     def _mass_flow_rate(self) -> float:
+@@ -243,26 +366,92 @@ class Branch:
+         self.__pump_pressure_raise = value
+ 
+     def get_density(self):
+-        # TODO: put correlation for density - self._temperature
+-        return 1000
++        # https://www.researchgate.net/publication/222573141_Enhanced_modeling_of_moisture_equilibrium_and_transport_in_cementitious_materials_under_arbitrary_temperature_and_relative_humidity_history/figures?lo=1
++        t = self._branch_temperature + 273.15
++        d = 1.54e-8 * t**3 - 1.85e-5 * t**2 + 6.65e-3 * t + 0.247  # [g/cm3]
++        return d * 1000
++
++    def get_specific_heat(self):
++        # TODO: put correlation for spec_heat - self._temperature
++        return 4182  # J/kg K
+ 
+     def get_dynamic_viscosity(self):
+-        # TODO: put correlation for viscosity - self._temperature
+-        return 0.36
++        # https://www.researchgate.net/publication/222573141_Enhanced_modeling_of_moisture_equilibrium_and_transport_in_cementitious_materials_under_arbitrary_temperature_and_relative_humidity_history/figures?lo=1
++        t = self._branch_temperature + 273.15
++        # mu = (
++        #     3.38e-8 * t**4 - 4.63e-5 * t**3 + 2.37e-2 * t**2 + 5.45 * t + 470
++        # )  # [kg/(m s)]
++        # https://powderprocess.net/Tools_html/Data_Diagrams/Water_Properties_Correlations.html
++        mu = np.exp(-3.7188 + 578.919 / (-137.546 + t)) / 1000  # [kg/(m s)]
++        return mu
++
++    def get_dynamic_capacity(self):
++        return self.get_density() * self._volume * self.get_specific_heat()
++
++    def calc_soil_linear_resistance(self, soil: Soil):
++        # Based onn ASHRAE DHC Handbook
++        try:
++            soil_conductivity = soil._soil_conductivity
++        except Exception:
++            raise TypeError(
++                f"Branch {self._idx}, calc_ground_resistance \n You must provide a proper soil object with a soil conductivity"
++            )
++        r_0 = self._pipe_ext_diameter / 2 + self._insulation_thickness
++        d = self._pipe_depth
++        if d / r_0 > 4:
++            self._soil_linear_resistance = np.log(2 * d / r_0) / (
++                2 * np.pi * soil_conductivity
++            )
++        else:
++            self._soil_linear_resistance = np.log(
++                d / r_0 + np.sqrt(d**2 / r_0**2 - 1)
++            ) / (2 * np.pi * soil_conductivity)
++            if d / r_0 < 2:
++                logging.warning(
++                    f"Branch {self._idx}, _soil_linear_resistance calculation. Ratio d/r0 lower than 2"
++                )
++
++    def calc_insulation_resistance(self):
++        self._insulation_linear_resistance = np.log(
++            (self._pipe_ext_diameter + self._insulation_thickness * 2)
++            / self._pipe_ext_diameter
++        ) / (2 * np.pi * self._insulation_conductivity)
++
++    def calc_pipe_resistance(self):
++        self._pipe_linear_resistance = np.log(
++            self._pipe_ext_diameter / self._pipe_int_diameter
++        ) / (2 * np.pi * self._pipe_conductivity)
++
++    def calc_ground_loss_factor(self, soil):
++        self.calc_soil_linear_resistance(soil)
++        self.calc_insulation_resistance()
++        self.calc_pipe_resistance()
++
++        R = (
++            self._pipe_linear_resistance
++            + self._insulation_linear_resistance
++            + self._soil_linear_resistance
++        )  # [(m K)/W]
++        U = self._pipe_len / R  # [W/K]
++        self.ground_loss_factor = U  # W/k
++
++    # def get_ground_temperature(self):
++    #     # TODO: put real_t_ground
++    #     return 13.0
+ 
+     # # First try flow rate
+     # # 0.1 m/s flow rate
+-    # self.first_try_flow_rate = 0.1 * 1000 * self.pipe_diameter**2 / 4
+-    def get_hydraulic_resistance(self, flow_rate=None):
+-        # TODO example to try
+-        # example just to try
+-        resistance = 2
+-        return resistance
+-
+-    def get_thermal_conductance(self):
+-        # TODO example to try
+-        U = 2  # [W/m2K]
+-        return self.external_area * U  # [W/K]
++    # # self.first_try_flow_rate = 0.1 * 1000 * self.pipe_diameter**2 / 4
++    # def get_hydraulic_resistance(self, flow_rate=None):
++    #     # TODO example to try
++    #     # example just to try
++    #     resistance = 2
++    #     return resistance
++
++    # def get_thermal_conductance(self):
++    #     # TODO example to try
++    #     U = 2  # [W/m2K]
++    #     return self.external_area * U  # [W/K]
+ 
+     # def set_timestep_flow_rate(self, flow):
+     #     self.timestep_flow_rate = flow
+diff --git a/eureca_dhcs/network.py b/eureca_dhcs/network.py
+index 60cfa66..a4408b2 100644
+--- a/eureca_dhcs/network.py
++++ b/eureca_dhcs/network.py
+@@ -14,7 +14,12 @@ from scipy.optimize import root
+ 
+ from eureca_dhcs.node import Node
+ from eureca_dhcs.branch import Branch
++from eureca_dhcs.soil import Soil
+ from eureca_dhcs._hydraulic_system_function import hydraulic_balance_system
++from eureca_dhcs._thermal_system_function import (
++    thermal_balance_system_optimization,
++    thermal_balance_system_inverse,
++)
+ from eureca_dhcs.exceptions import (
+     EmptyNetworkNodes,
+     DuplicateNode,
+@@ -24,7 +29,9 @@ from eureca_dhcs.exceptions import (
+ 
+ 
+ class Network:
+-    def __init__(self, nodes_dict: dict, branches_dict: dict, output_path=None):
++    def __init__(
++        self, nodes_dict: dict, branches_dict: dict, soil_obj: Soil, output_path=None
++    ):
+         """
+         Creates a district water network starting from nodes and branches dictionaries
+         See the example below
+@@ -51,13 +58,15 @@ class Network:
+         branches_file : dict
+             Dict with branches and kwargs.
+             {
+-                "1":
+-                {"id": "Z",
+-                "supply node": "0",
+-                "demand node": "2",
+-                "pipe diameter [m]": 0.3,
+-                "depth [m]": Na
+-                },
++                "id": "D",
++                "supply node": "14",
++                "demand node": "15",
++                "pipe ext diameter [m]": 0.3,
++                "depth [m]": 0.8,
++                "pipe thickness [m]": 0.02,
++                "insulation thickness [m]": 0.03,
++                "pipe conductivity [W/(mK)]": 50.0,
++                "insulation conductivity [W/(mK)]": 0.1,
+             "2":
+                 {...
+                  ...}
+@@ -65,6 +74,14 @@ class Network:
+             .
+             .
+ 
++        soil_obj: Soil
++            Soil object to associate to the network (with soil properties)
++
++        output_path: str
++            path to where results are save. If it does not exist the tool creates it
++
++
++
+         Returns
+         -------
+         None.
+@@ -79,7 +96,7 @@ class Network:
+         # Needed to vectorize hydraulic resistances
+         self._branches_object_ordered_list = []
+         self._nodes_object_ordered_list = []
+-
++        self._soil_obj = soil_obj
+         # Creation of the nodes objects... THIS MUST BE DONE BEFORE THE CREATION OF BRANCHES
+         self._create_nodes()
+         # Creation of the branch objects... THIS MUST BE DONE BEFORE THE CREATION OF BRANCHES
+@@ -97,6 +114,18 @@ class Network:
+             self.output_path = str(output_path)
+             self._create_output_folder()
+ 
++    @property
++    def _soil_obj(self) -> Soil:
++        return self.__soil_obj
++
++    @_soil_obj.setter
++    def _soil_obj(self, value: Soil):
++        if not isinstance(value, Soil):
++            raise TypeError(
++                f"Network soil object, a soil object must be passed. Type: {type(value)}"
++            )
++        self.__soil_obj = value
++
+     def _create_output_folder(self):
+         if self.output_path == None:
+             raise AttributeError(f"To create output file you must set an output folder")
+@@ -159,8 +188,14 @@ class Network:
+                 idx=branch["id"],
+                 supply_node=branch["supply node"],
+                 demand_node=branch["demand node"],
+-                pipe_diameter=branch["pipe diameter [m]"],
++                pipe_ext_diameter=branch["pipe ext diameter [m]"],
++                pipe_thickness=branch["pipe thickness [m]"],
++                pipe_depth=branch["depth [m]"],
++                insulation_thickness=branch["insulation thickness [m]"],
++                pipe_conductivity=branch["pipe conductivity [W/(mK)]"],
++                insulation_conductivity=branch["insulation conductivity [W/(mK)]"],
+                 nodes_objects_dict=self._nodes_object_dict,
++                soil_obj=self._soil_obj,
+             )
+ 
+             if "pipe length [m]" in branch.keys():
+@@ -283,25 +318,105 @@ class Network:
+         excel_path: str,
+         number_of_timesteps: int,
+     ):
+-        hydraulic = pd.read_excel(
++        boundaries = pd.read_excel(
+             excel_path,
+-            sheet_name="Hydraulic",
++            sheet_name=["Hydraulic", "Thermal"],
+             index_col=0,
+             header=[0, 1, 2],
+         )
+ 
+-        nodes = hydraulic["Node"]["Mass flow rate [kg/s]"]
++        nodes = boundaries["Hydraulic"]["Node"]["Mass flow rate [kg/s]"]
+         nodes_dict = nodes.to_dict(orient="List")
+-        branches = hydraulic["Branch"]["Pump pressure raise [Pa]"]
++        branches = boundaries["Hydraulic"]["Branch"]["Pump pressure raise [Pa]"]
+         branches_dict = branches.to_dict(orient="List")
+         # Just to convert in str and np.array
+         nodes_dict = {str(k): np.array(node) for k, node in nodes_dict.items()}
+         branches_dict = {
+             str(k): np.array(branch) for k, branch in branches_dict.items()
+         }
+-        self.load_boundary_conditions(nodes_dict, branches_dict, number_of_timesteps)
++        self.load_hydraulic_boundary_conditions(
++            nodes_dict, branches_dict, number_of_timesteps
++        )
++
++        nodes = boundaries["Thermal"]["Node"]["Temperature [°C]"]
++        nodes_dict = nodes.to_dict(orient="List")
++        nodes_dict = {str(k): np.array(node) for k, node in nodes_dict.items()}
++        self.load_thermal_boundary_conditions(nodes_dict, number_of_timesteps)
++
++    def load_thermal_boundary_conditions(
++        self,
++        nodes_boundary_conditions: dict,
++        number_of_timesteps: int,
++    ):
++        """
++        This method execute:
++            self.load_nodes_temperature_boundary_condition(nodes_boundary_conditions, number_of_timesteps)
++
++        Parameters
++        ----------
++        nodes_boundary_conditions : dict
++            Dictionary with the following sintax (temperature of the supply nodes):
++                "1" : np.array([50,55,55,....]),
++                "3" : np.array([70,75,78,....]),
++                .
++                .
++                ..
++
++        number_of_timesteps : int
++            Number of timesteps to be considered.
++
++        Returns
++        -------
++        None.
++        """
++        self.load_nodes_temperature_boundary_condition(
++            nodes_boundary_conditions, number_of_timesteps
++        )
++
++    def load_nodes_temperature_boundary_condition(
++        self, boundary_conditions: dict, number_of_timesteps: int
++    ):
++        """
++        This method loads the temperature boundary conditions of the nodes.
++        Use °C as reference unit.
++
++        Parameters
++        ----------
++        nodes_boundary_conditions : dict
++            Dictionary with the following sintax (temperature of the supply nodes):
++                "1" : np.array([50,55,55,....]),
++                "3" : np.array([70,75,78,....]),
++                .
++                .
++                ..
++
++        number_of_timesteps : int
++            Number of timesteps to be considered.
++
++        Returns
++        -------
++        None.
++        """
+ 
+-    def load_boundary_conditions(
++        for node_k, node in self._nodes_object_dict.items():
++            if node._node_type in ["supply"]:
++                try:
++                    if len(boundary_conditions[node_k]) < number_of_timesteps:
++                        raise ValueError(
++                            f"Node {node._idx}: the boundary condition for the node is shorter than the number of timesteps. Provide a longer boundary condition"
++                        )
++                    node._boundary_temperature = boundary_conditions[node_k][
++                        :number_of_timesteps
++                    ]
++                except KeyError:
++                    raise BoundaryConditionNotProvided(
++                        f"Node {node._idx}: the node is a {node._node_type} node, but no boundary temperature is provided.\nPlease provide a boundary condition"
++                    )
++            else:
++                # node._boundary_temperature = np.zeros(number_of_timesteps)
++                pass
++
++    def load_hydraulic_boundary_conditions(
+         self,
+         nodes_boundary_conditions: dict,
+         branches_boundary_conditions: dict,
+@@ -309,8 +424,8 @@ class Network:
+     ):
+         """
+         This method execute:
+-            self.load_nodes_boundary_condition(nodes_boundary_conditions, number_of_timesteps)
+-            self.load_branches_boundary_condition(branches_boundary_conditions, number_of_timesteps)
++            self.load_nodes_mass_flow_rate_boundary_condition(nodes_boundary_conditions, number_of_timesteps)
++            self.load_branches_pump_pressure_raise_boundary_condition(branches_boundary_conditions, number_of_timesteps)
+ 
+ 
+         Parameters
+@@ -339,14 +454,14 @@ class Network:
+         None.
+ 
+         """
+-        self.load_nodes_boundary_condition(
++        self.load_nodes_mass_flow_rate_boundary_condition(
+             nodes_boundary_conditions, number_of_timesteps
+         )
+-        self.load_branches_boundary_condition(
++        self.load_branches_pump_pressure_raise_boundary_condition(
+             branches_boundary_conditions, number_of_timesteps
+         )
+ 
+-    def load_nodes_boundary_condition(
++    def load_nodes_mass_flow_rate_boundary_condition(
+         self, boundary_conditions: dict, number_of_timesteps: int
+     ):
+         """
+@@ -392,7 +507,7 @@ class Network:
+             else:
+                 node._boundary_mass_flow_rate = np.zeros(number_of_timesteps)
+ 
+-    def load_branches_boundary_condition(
++    def load_branches_pump_pressure_raise_boundary_condition(
+         self, boundary_conditions: dict, number_of_timesteps: int
+     ):
+         """
+@@ -443,7 +558,27 @@ class Network:
+         x0 = self._generate_hydraulic_balance_starting_vector()
+         x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
+         self._set_hydraulic_balance_results_vector(x.x)
+-        return x.x
++        return x.x, q, x0
++
++    def solve_thermal_balance(self, timestep: int, time_interval: int = 3600):
++        # Boundary condition
++        q = self._generate_thermal_balance_boundary_condition(timestep, time_interval)
++        # First try vector
++        ################################################################
++        # DO NOT USE thermal_balance_system_optimization: WRONG RESULTS
++        # x0 = self._generate_thermal_balance_starting_vector()
++        # x = root(
++        #     thermal_balance_system_optimization,
++        #     x0,
++        #     args=(q, self, time_interval),
++        #     method="hybr",
++        # )
++        ################################################################
++
++        x, A, q = thermal_balance_system_inverse(self, q, time_interval)
++        self._set_thermal_balance_results_vector(x)
++
++        return x
+ 
+     def _generate_hydraulic_balance_boundary_condition(self, timestep):
+         q = []
+@@ -496,6 +631,71 @@ class Network:
+             [branches_mass_flow_rates, nodes_pressures, branches_friction_factors]
+         )
+ 
++    def _generate_thermal_balance_boundary_condition(self, timestep, time_interval):
++        """
++        Generate thermal balance know term
++        Equations are node mixing balances and branches energy balance
++
++        Parameters
++        ----------
++        timestep : int
++            This is the current time step the simulation is calculating.
++        time_interval : int
++            The time interval between timestep in seconds.
++
++        Raises
++        ------
++        IndexError
++            If the timestep is over the boundary condition.
++
++        Returns
++        -------
++        np.array
++            array of the known terms.
++
++        """
++
++        q = []
++        for node in self._nodes_object_ordered_list:
++            try:
++                q.append(node._boundary_temperature[timestep])
++            except AttributeError:
++                q.append(0.0)  # This is the case of a
++            except IndexError:
++                raise IndexError(
++                    f"Node {node._idx}: selected timestep {timestep} longer than boundary conditions. "
++                )
++        for branch in self._branches_object_ordered_list:
++
++            C = branch.get_dynamic_capacity()
++            f_loss = branch.ground_loss_factor
++            T_ground = self._soil_obj.get_soil_temperature()
++
++            q.append(C * branch._branch_temperature / time_interval + f_loss * T_ground)
++        return np.array(q)
++
++    def _generate_thermal_balance_starting_vector(self):
++        """
++        Generate the starting guess vector from the value of the previous timestep
++        stored in the nodes and branches abjects
++
++        Returns
++        -------
++        x : np.array
++            array with the first try value [nodes_temperatures, branches_temperatures].
++
++        """
++        nodes_temperatures = np.array(
++            [node._node_temperature for node in self._nodes_object_ordered_list]
++        )
++        branches_temperatures = np.array(
++            [
++                branch._branch_temperature
++                for branch in self._branches_object_ordered_list
++            ]
++        )
++        return np.hstack([nodes_temperatures, branches_temperatures])
++
+     def _set_hydraulic_balance_results_vector(self, x):
+         """
+         Set the new status variables to the nodes and branches objects
+@@ -530,6 +730,39 @@ class Network:
+         ):
+             node._node_pressure = pressure
+ 
++    def _set_thermal_balance_results_vector(self, x):
++        """
++        Set the new status variables to the nodes and branches objects
++
++        Parameters
++        ----------
++        x : np.array
++            array with the results of the hydraulic [nodes_temperatures, branches_temperatures].
++
++        Returns
++        -------
++        None.
++
++        """
++        new_nodes_temperatures = x[: self._nodes_number]
++        new_branches_temperatures = x[
++            self._nodes_number : (self._branches_number + self._nodes_number)
++        ]
++        for temp, node in zip(
++            new_nodes_temperatures,
++            self._nodes_object_ordered_list,
++        ):
++            node._node_temperature = temp
++        for temp, branch in zip(
++            new_branches_temperatures,
++            self._branches_object_ordered_list,
++        ):
++            branch._branch_temperature = temp
++
++    def save_results(self):
++        self.save_hydraulic_results()
++        self.save_thermal_results()
++
+     def save_hydraulic_results(self):
+         if self.output_path == None:
+             logging.warning(
+@@ -540,6 +773,16 @@ class Network:
+         self.save_nodes_pressures()
+         self.save_branches_mass_flow_rates()
+ 
++    def save_thermal_results(self):
++        if self.output_path == None:
++            logging.warning(
++                f"Output folder not provided, results will be saved in the working directory"
++            )
++            self.output_path = os.path.join(".")
++            self._create_output_folder()
++        self.save_nodes_temperatures()
++        self.save_branches_temperatures()
++
+     def save_nodes_pressures(self):
+         nodes_pressures_header = ""
+         matrix = []
+@@ -564,8 +807,36 @@ class Network:
+             branches.write(branches_pressures_header + "\n")
+             np.savetxt(branches, matrix, delimiter=",", fmt="%.2f")
+ 
++    def save_nodes_temperatures(self):
++        nodes_temperatures_header = ""
++        matrix = []
++        for node_k, node in self._nodes_object_dict.items():
++            nodes_temperatures_header += node_k + ", "
++            matrix.append(node._node_temperature_array)
++        matrix = np.array(matrix).transpose()
++        with open(
++            os.path.join(self.output_path, "NodesTemperatures.csv"), "w"
++        ) as nodes:
++            nodes.write(nodes_temperatures_header + "\n")
++            np.savetxt(nodes, matrix, delimiter=",", fmt="%.2f")
++
++    def save_branches_temperatures(self):
++        branches_temperatures_header = ""
++        matrix = []
++        for branch_k, branch in self._branches_object_dict.items():
++            branches_temperatures_header += branch_k + ", "
++            matrix.append(branch._branch_temperature_array)
++        matrix = np.array(matrix).transpose()
++        with open(
++            os.path.join(self.output_path, "BranchTemperatures.csv"), "w"
++        ) as branches:
++            branches.write(branches_temperatures_header + "\n")
++            np.savetxt(branches, matrix, delimiter=",", fmt="%.2f")
++
+     @classmethod
+-    def from_shapefiles(cls, nodes_file: str, branches_file: str, output_path=None):
++    def from_shapefiles(
++        cls, nodes_file: str, branches_file: str, soil_obj: Soil, output_path=None
++    ):
+         """
+         Creates a district water network starting from GIS nodes and branches shapefile
+ 
+@@ -590,6 +861,12 @@ class Network:
+                 supply_nod: id of the supply node for the branch
+                 demand_nod: id of the demand node for the branch
+ 
++        soil_obj: Soil
++            Soil object to associate to the network (with soil properties)
++
++        output_path: str
++            path to where results are save. If it does not exist the tool creates it
++
+ 
+         Returns
+         -------
+@@ -628,9 +905,17 @@ class Network:
+                 "id": str(branch["id"]),
+                 "supply node": str(branch["supply_nod"]),
+                 "demand node": str(branch["demand_nod"]),
+-                "pipe diameter [m]": str(branch["pipe_d [m]"]),
++                "pipe ext diameter [m]": str(branch["p_de [m]"]),
+                 "roughness [-]": str(branch["roughness"]),
++                "depth [m]": str(branch["depth [m]"]),
++                "pipe thickness [m]": str(branch["pipe_t [m]"]),
++                "insulation thickness [m]": str(branch["ins_t [m]"]),
++                "pipe conductivity [W/(mK)]": str(branch["p_l [W/mK]"]),
++                "insulation conductivity [W/(mK)]": str(branch["i_l [W/mK]"]),
+             }
+         return cls(
+-            nodes_dict=nodes_dict, branches_dict=branches_dict, output_path=output_path
++            nodes_dict=nodes_dict,
++            branches_dict=branches_dict,
++            soil_obj=soil_obj,
++            output_path=output_path,
+         )
+diff --git a/eureca_dhcs/node.py b/eureca_dhcs/node.py
+index 62e5561..ef88c23 100644
+--- a/eureca_dhcs/node.py
++++ b/eureca_dhcs/node.py
+@@ -23,6 +23,7 @@ class Node:
+     # This is used just for the first timestep,
+     # then pressure of the previous timestep is used
+     _starting_pressure = 10.0  # [Pa]
++    _starting_temperature = 50.0  # [Pa]
+ 
+     def __init__(
+         self,
+@@ -74,6 +75,8 @@ class Node:
+ 
+         self._node_pressure_array = np.array([])
+         self._node_pressure = self._starting_pressure  # [Pa]
++        self._node_temperature_array = np.array([])
++        self._node_temperature = self._starting_temperature  # [Pa]
+ 
+     @property
+     def _idx(self) -> str:
+@@ -105,11 +108,11 @@ class Node:
+         self.__node_type = value
+ 
+     @property
+-    def _node_pressure(self) -> str:
++    def _node_pressure(self) -> float:
+         return self.__node_pressure
+ 
+     @_node_pressure.setter
+-    def _node_pressure(self, value: str):
++    def _node_pressure(self, value: float):
+         try:
+             value = float(value)
+         except ValueError:
+@@ -123,6 +126,27 @@ class Node:
+         self.__node_pressure = value
+         self._node_pressure_array = np.append(self._node_pressure_array, value)
+ 
++    @property
++    def _node_temperature(self) -> float:
++        return self.__node_temperature
++
++    @_node_temperature.setter
++    def _node_temperature(self, value: float):
++        try:
++            value = float(value)
++        except ValueError:
++            raise TypeError(
++                f"Node {self._idx}, node temperature must be a float: {value} [°C]"
++            )
++        if value > 95:
++            logging.warning(f"Node {self._idx} temperature over 95 °C: {value} [°C]")
++        if value < 5:
++            logging.warning(
++                f"Node {self._idx} temperature lower than 5 °C: {value} [°C]"
++            )
++        self.__node_temperature = value
++        self._node_temperature_array = np.append(self._node_temperature_array, value)
++
+     @property
+     def _boundary_mass_flow_rate(self) -> np.array:
+         return self.__boundary_mass_flow_rate
+@@ -145,6 +169,28 @@ class Node:
+             )
+         self.__boundary_mass_flow_rate = value
+ 
++    @property
++    def _boundary_temperature(self) -> np.array:
++        return self.__boundary_temperature
++
++    @_boundary_temperature.setter
++    def _boundary_temperature(self, value: np.array):
++        try:
++            value = np.array(value)
++        except ValueError:
++            raise TypeError(
++                f"Node {self._idx}, _boundary_temperature must be a np.array: {value}"
++            )
++        if np.any(value < 5):
++            logging.warning(f"Node {self._idx}: supply node temperature less than 5 °C")
++        if np.any(value > 95):
++            logging.warning(
++                f"Node {self._idx}: supply node temperature higher than 95 °C"
++            )
++        if self._node_type != "supply":
++            logging.warning(f"Node {self._idx}: temperature set for a non supply node")
++        self.__boundary_temperature = value
++
+     def get_supply_branches_unique_idx(self):
+         return [
+             branch._unique_matrix_idx
+@@ -157,6 +203,16 @@ class Node:
+             for k, branch in self._demand_branches_objects.items()
+         ]
+ 
++    def get_supply_branches_mass_flow_rates(self):
++
++        array = np.array(
++            [
++                [int(branch._unique_matrix_idx), branch._mass_flow_rate]
++                for k, branch in self._supply_branches_objects.items()
++            ]
++        )
++        return array[:, 0].astype(int), array[:, 1]
++
+     def distance_from_node(self, node_2):
+         """
+         Takes a second Node object to calculate the distance [m]
+diff --git a/eureca_dhcs/soil.py b/eureca_dhcs/soil.py
+new file mode 100644
+index 0000000..cd8ba7f
+--- /dev/null
++++ b/eureca_dhcs/soil.py
+@@ -0,0 +1,44 @@
++__author__ = "Enrico Prataviera"
++__credits__ = ["Enrico Prataviera"]
++__license__ = "MIT"
++__version__ = "0.1"
++__maintainer__ = "Enrico Prataviera"
++
++import math
++import logging
++
++import numpy as np
++
++from eureca_dhcs.exceptions import DuplicateBranch, WrongBranchTemperatureMode
++
++
++class Soil:
++    def __init__(self):
++        # Based on ASHRAE handbook district heating and cooling
++
++        self._soil_conductivity = 1.40  # Davis approximate data
++        self._soil_specific_heat = 0.73
++        self._water_specific_heat = 4.18
++        self._soil_density = 1450
++        self._moisture_content = 10  # %
++        self._number_of_days = 365
++
++        self._soil_diffusivity = (
++            24
++            * 3600
++            * self._soil_conductivity
++            / (
++                1000
++                * self._soil_density
++                * (
++                    self._soil_specific_heat
++                    + self._water_specific_heat * self._moisture_content / 100
++                )
++            )
++        )
++
++        # self._mean_annual_surface_temperature
++
++    def get_soil_temperature(self):
++        # TODO be Modify
++        return 15.0
+diff --git a/eureca_dhcs/test/create_net_json.py b/eureca_dhcs/test/create_net_json.py
+index efec375..953ac86 100644
+--- a/eureca_dhcs/test/create_net_json.py
++++ b/eureca_dhcs/test/create_net_json.py
+@@ -62,36 +62,56 @@ branches = {
+         "id": "Z",
+         "supply node": "10",
+         "demand node": "12",
+-        "pipe diameter [m]": 0.3,
+-        "depth [m]": np.nan,
++        "pipe ext diameter [m]": 0.3,
++        "depth [m]": 0.8,
++        "pipe thickness [m]": 0.02,
++        "insulation thickness [m]": 0.03,
++        "pipe conductivity [W/(mK)]": 50.0,
++        "insulation conductivity [W/(mK)]": 0.1,
+     },
+     "A": {
+         "id": "A",
+         "supply node": "11",
+         "demand node": "12",
+-        "pipe diameter [m]": 0.3,
+-        "depth [m]": np.nan,
++        "pipe ext diameter [m]": 0.3,
++        "depth [m]": 0.8,
++        "pipe thickness [m]": 0.02,
++        "insulation thickness [m]": 0.03,
++        "pipe conductivity [W/(mK)]": 50.0,
++        "insulation conductivity [W/(mK)]": 0.1,
+     },
+     "B": {
+         "id": "B",
+         "supply node": "12",
+         "demand node": "13",
+-        "pipe diameter [m]": 0.3,
+-        "depth [m]": np.nan,
++        "pipe ext diameter [m]": 0.3,
++        "depth [m]": 0.8,
++        "pipe thickness [m]": 0.02,
++        "insulation thickness [m]": 0.03,
++        "pipe conductivity [W/(mK)]": 50.0,
++        "insulation conductivity [W/(mK)]": 0.1,
+     },
+     "C": {
+         "id": "C",
+         "supply node": "12",
+         "demand node": "14",
+-        "pipe diameter [m]": 0.3,
+-        "depth [m]": np.nan,
++        "pipe ext diameter [m]": 0.3,
++        "depth [m]": 0.8,
++        "pipe thickness [m]": 0.02,
++        "insulation thickness [m]": 0.03,
++        "pipe conductivity [W/(mK)]": 50.0,
++        "insulation conductivity [W/(mK)]": 0.1,
+     },
+     "D": {
+         "id": "D",
+         "supply node": "14",
+         "demand node": "15",
+-        "pipe diameter [m]": 0.3,
+-        "depth [m]": np.nan,
++        "pipe ext diameter [m]": 0.3,
++        "depth [m]": 0.8,
++        "pipe thickness [m]": 0.02,
++        "insulation thickness [m]": 0.03,
++        "pipe conductivity [W/(mK)]": 50.0,
++        "insulation conductivity [W/(mK)]": 0.1,
+     },
+ }
+ 
+diff --git a/eureca_dhcs/test/example_file_ring.py b/eureca_dhcs/test/example_file_ring.py
+index aff2d8f..1c81645 100644
+--- a/eureca_dhcs/test/example_file_ring.py
++++ b/eureca_dhcs/test/example_file_ring.py
+@@ -11,21 +11,45 @@ __maintainer__ = "Enrico Prataviera"
+ import os
+ 
+ from eureca_dhcs.network import Network
++from eureca_dhcs.soil import Soil
+ 
+-path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "lines_ring.shp")
+-path_nodes = os.path.join("eureca_dhcs", "test", "input_tests", "nodes_ring_point.shp")
+-# Boundary condition
+-boundaries = os.path.join("eureca_dhcs", "test", "input_tests", "conditions_ring.xlsx")
+-
+-network = Network.from_shapefiles(path_nodes, path_lines, output_path="output_ring")
+-network.load_boundary_conditions_from_excel(boundaries, 100)
+-
++sim = "lin"
++if sim == "ring":
++    path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "lines_ring.shp")
++    path_nodes = os.path.join(
++        "eureca_dhcs", "test", "input_tests", "nodes_ring_point.shp"
++    )
++    # Boundary condition
++    boundaries = os.path.join(
++        "eureca_dhcs", "test", "input_tests", "conditions_ring.xlsx"
++    )
++    soil = Soil()
++    network = Network.from_shapefiles(
++        path_nodes, path_lines, soil, output_path="output_ring"
++    )
++    network.load_boundary_conditions_from_excel(boundaries, 100)
++else:
++    path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "lines.shp")
++    path_nodes = os.path.join("eureca_dhcs", "test", "input_tests", "nodes.shp")
++    # Boundary condition
++    boundaries = os.path.join("eureca_dhcs", "test", "input_tests", "conditions.xlsx")
++    soil = Soil()
++    network = Network.from_shapefiles(
++        path_nodes, path_lines, soil, output_path="output"
++    )
++    network.load_boundary_conditions_from_excel(boundaries, 8760)
+ # %%
+-for iteration in range(20):
+-    x = network.solve_hydraulic_balance(iteration)
++for iteration in range(1):
++    x, q, x0 = network.solve_hydraulic_balance(iteration)
++
++    sol = network.solve_thermal_balance(iteration)
+     print(f"##### timestep {iteration} ######")
+     for b_k, b in network._branches_object_dict.items():
+-        print(f"Branch {b_k}: mass {b._mass_flow_rate}\t\t{b._roughness}")
++        print(
++            f"Branch {b_k}: mass {b._mass_flow_rate:.1f}\t\t{b._roughness}\t\tTemp {b._branch_temperature:.1f}"
++        )
+     for n_k, n in network._nodes_object_dict.items():
+-        print(f"Node {n_k}: pressure {n._node_pressure}")
+-network.save_hydraulic_results()
++        print(
++            f"Node {n_k}: pressure {n._node_pressure:6.1f}\t\t\tTemp {n._node_temperature:.1f}"
++        )
++network.save_results()
+diff --git a/eureca_dhcs/test/input_tests/Conditions.xlsx b/eureca_dhcs/test/input_tests/Conditions.xlsx
+index b0436b8..6bac9e2 100644
+Binary files a/eureca_dhcs/test/input_tests/Conditions.xlsx and b/eureca_dhcs/test/input_tests/Conditions.xlsx differ
+diff --git a/eureca_dhcs/test/input_tests/conditions_ring.xlsx b/eureca_dhcs/test/input_tests/conditions_ring.xlsx
+index c8d2adc..9870baf 100644
+Binary files a/eureca_dhcs/test/input_tests/conditions_ring.xlsx and b/eureca_dhcs/test/input_tests/conditions_ring.xlsx differ
+diff --git a/eureca_dhcs/test/input_tests/lines.dbf b/eureca_dhcs/test/input_tests/lines.dbf
+index 6dc9c72..f643c83 100644
+Binary files a/eureca_dhcs/test/input_tests/lines.dbf and b/eureca_dhcs/test/input_tests/lines.dbf differ
+diff --git a/eureca_dhcs/test/input_tests/lines.qmd b/eureca_dhcs/test/input_tests/lines.qmd
+new file mode 100644
+index 0000000..320f6bd
+--- /dev/null
++++ b/eureca_dhcs/test/input_tests/lines.qmd
+@@ -0,0 +1,43 @@
++<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
++<qgis version="3.22.5-Bia?owie?a">
++  <identifier></identifier>
++  <parentidentifier></parentidentifier>
++  <language></language>
++  <type>dataset</type>
++  <title></title>
++  <abstract></abstract>
++  <contact>
++    <name></name>
++    <organization></organization>
++    <position></position>
++    <voice></voice>
++    <fax></fax>
++    <email></email>
++    <role></role>
++  </contact>
++  <links/>
++  <fees></fees>
++  <encoding></encoding>
++  <crs>
++    <spatialrefsys>
++      <wkt></wkt>
++      <proj4></proj4>
++      <srsid>0</srsid>
++      <srid>0</srid>
++      <authid></authid>
++      <description></description>
++      <projectionacronym></projectionacronym>
++      <ellipsoidacronym></ellipsoidacronym>
++      <geographicflag>false</geographicflag>
++    </spatialrefsys>
++  </crs>
++  <extent>
++    <spatial minx="0" minz="0" maxy="0" dimensions="2" maxz="0" maxx="0" crs="" miny="0"/>
++    <temporal>
++      <period>
++        <start></start>
++        <end></end>
++      </period>
++    </temporal>
++  </extent>
++</qgis>
+diff --git a/eureca_dhcs/test/input_tests/lines_ring.dbf b/eureca_dhcs/test/input_tests/lines_ring.dbf
+index 2e8e669..5e0f7d7 100644
+Binary files a/eureca_dhcs/test/input_tests/lines_ring.dbf and b/eureca_dhcs/test/input_tests/lines_ring.dbf differ
+diff --git a/eureca_dhcs/test/input_tests/nodes.dbf b/eureca_dhcs/test/input_tests/nodes.dbf
+index f0915f5..f87e0b7 100644
+Binary files a/eureca_dhcs/test/input_tests/nodes.dbf and b/eureca_dhcs/test/input_tests/nodes.dbf differ
+diff --git a/eureca_dhcs/test/input_tests/nodes.qmd b/eureca_dhcs/test/input_tests/nodes.qmd
+new file mode 100644
+index 0000000..320f6bd
+--- /dev/null
++++ b/eureca_dhcs/test/input_tests/nodes.qmd
+@@ -0,0 +1,43 @@
++<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
++<qgis version="3.22.5-Bia?owie?a">
++  <identifier></identifier>
++  <parentidentifier></parentidentifier>
++  <language></language>
++  <type>dataset</type>
++  <title></title>
++  <abstract></abstract>
++  <contact>
++    <name></name>
++    <organization></organization>
++    <position></position>
++    <voice></voice>
++    <fax></fax>
++    <email></email>
++    <role></role>
++  </contact>
++  <links/>
++  <fees></fees>
++  <encoding></encoding>
++  <crs>
++    <spatialrefsys>
++      <wkt></wkt>
++      <proj4></proj4>
++      <srsid>0</srsid>
++      <srid>0</srid>
++      <authid></authid>
++      <description></description>
++      <projectionacronym></projectionacronym>
++      <ellipsoidacronym></ellipsoidacronym>
++      <geographicflag>false</geographicflag>
++    </spatialrefsys>
++  </crs>
++  <extent>
++    <spatial minx="0" minz="0" maxy="0" dimensions="2" maxz="0" maxx="0" crs="" miny="0"/>
++    <temporal>
++      <period>
++        <start></start>
++        <end></end>
++      </period>
++    </temporal>
++  </extent>
++</qgis>
+diff --git a/eureca_dhcs/test/input_tests/nodes_ring_point.dbf b/eureca_dhcs/test/input_tests/nodes_ring_point.dbf
+index 06f327e..37734ce 100644
+Binary files a/eureca_dhcs/test/input_tests/nodes_ring_point.dbf and b/eureca_dhcs/test/input_tests/nodes_ring_point.dbf differ
+diff --git a/eureca_dhcs/test/network_config/branches.json b/eureca_dhcs/test/network_config/branches.json
+index 964603e..78b1522 100644
+--- a/eureca_dhcs/test/network_config/branches.json
++++ b/eureca_dhcs/test/network_config/branches.json
+@@ -1 +1 @@
+-{"Z": {"id": "Z", "supply node": "10", "demand node": "12", "pipe diameter [m]": 0.3, "depth [m]": NaN}, "A": {"id": "A", "supply node": "11", "demand node": "12", "pipe diameter [m]": 0.3, "depth [m]": NaN}, "B": {"id": "B", "supply node": "12", "demand node": "13", "pipe diameter [m]": 0.3, "depth [m]": NaN}, "C": {"id": "C", "supply node": "12", "demand node": "14", "pipe diameter [m]": 0.3, "depth [m]": NaN}, "D": {"id": "D", "supply node": "14", "demand node": "15", "pipe diameter [m]": 0.3, "depth [m]": NaN}}
+\ No newline at end of file
++{"Z": {"id": "Z", "supply node": "10", "demand node": "12", "pipe ext diameter [m]": 0.3, "depth [m]": 0.8, "pipe thickness [m]": 0.02, "insulation thickness [m]": 0.03, "pipe conductivity [W/(mK)]": 50.0, "insulation conductivity [W/(mK)]": 0.1}, "A": {"id": "A", "supply node": "11", "demand node": "12", "pipe ext diameter [m]": 0.3, "depth [m]": 0.8, "pipe thickness [m]": 0.02, "insulation thickness [m]": 0.03, "pipe conductivity [W/(mK)]": 50.0, "insulation conductivity [W/(mK)]": 0.1}, "B": {"id": "B", "supply node": "12", "demand node": "13", "pipe ext diameter [m]": 0.3, "depth [m]": 0.8, "pipe thickness [m]": 0.02, "insulation thickness [m]": 0.03, "pipe conductivity [W/(mK)]": 50.0, "insulation conductivity [W/(mK)]": 0.1}, "C": {"id": "C", "supply node": "12", "demand node": "14", "pipe ext diameter [m]": 0.3, "depth [m]": 0.8, "pipe thickness [m]": 0.02, "insulation thickness [m]": 0.03, "pipe conductivity [W/(mK)]": 50.0, "insulation conductivity [W/(mK)]": 0.1}, "D": {"id": "D", "supply node": "14", "demand node": "15", "pipe ext diameter [m]": 0.3, "depth [m]": 0.8, "pipe thickness [m]": 0.02, "insulation thickness [m]": 0.03, "pipe conductivity [W/(mK)]": 50.0, "insulation conductivity [W/(mK)]": 0.1}}
+\ No newline at end of file
+diff --git a/eureca_dhcs/test/output_tests/BranchMassFlowRates.csv b/eureca_dhcs/test/output_tests/BranchMassFlowRates.csv
+index f822380..c21f8d8 100644
+--- a/eureca_dhcs/test/output_tests/BranchMassFlowRates.csv
++++ b/eureca_dhcs/test/output_tests/BranchMassFlowRates.csv
+@@ -1,12 +1,12 @@
+ 1, 2, 3, 5, 6, 4, 
+ 50.00,50.00,50.00,50.00,50.00,50.00
+-30.00,50.00,80.00,50.00,30.00,30.00
+-30.00,50.00,80.00,50.00,30.00,30.00
+-30.00,50.00,80.00,50.00,30.00,30.00
+-30.00,50.00,80.00,50.00,30.00,30.00
+-40.00,50.00,90.00,50.00,40.00,40.00
+-40.00,50.00,90.00,50.00,40.00,40.00
+-10.00,50.00,60.00,20.00,40.00,40.00
+-20.00,40.00,60.00,20.00,40.00,40.00
+-20.00,40.00,60.00,20.00,40.00,40.00
+-20.00,40.00,60.00,20.00,40.00,40.00
++50.00,50.00,50.00,50.00,50.00,50.00
++50.00,50.00,50.00,50.00,50.00,50.00
++50.00,50.00,50.00,50.00,50.00,50.00
++50.00,50.00,50.00,50.00,50.00,50.00
++50.00,50.00,50.00,50.00,50.00,50.00
++50.00,50.00,50.00,50.00,50.00,50.00
++50.00,50.00,50.00,50.00,50.00,50.00
++50.00,50.00,50.00,50.00,50.00,50.00
++50.00,50.00,50.00,50.00,50.00,50.00
++50.00,50.00,50.00,50.00,50.00,50.00
+diff --git a/eureca_dhcs/test/output_tests/BranchTemperatures.csv b/eureca_dhcs/test/output_tests/BranchTemperatures.csv
+new file mode 100644
+index 0000000..e393c19
+--- /dev/null
++++ b/eureca_dhcs/test/output_tests/BranchTemperatures.csv
+@@ -0,0 +1,12 @@
++1, 2, 3, 5, 6, 4, 
++55.00,55.00,55.00,55.00,55.00,55.00
++50.04,59.81,54.85,54.82,54.78,54.81
++49.96,59.95,54.87,54.83,54.79,54.83
++49.96,59.95,54.87,54.83,54.80,54.83
++49.96,59.95,54.87,54.83,54.80,54.83
++49.96,59.95,54.87,54.83,54.80,54.83
++49.96,59.95,54.87,54.83,54.80,54.83
++49.96,59.95,54.87,54.83,54.80,54.83
++49.96,59.95,54.87,54.83,54.80,54.83
++49.96,59.95,54.87,54.83,54.80,54.83
++54.88,59.95,57.20,57.05,57.09,57.13
+diff --git a/eureca_dhcs/test/output_tests/NodesPressures.csv b/eureca_dhcs/test/output_tests/NodesPressures.csv
+index 34f83a4..4c331ff 100644
+--- a/eureca_dhcs/test/output_tests/NodesPressures.csv
++++ b/eureca_dhcs/test/output_tests/NodesPressures.csv
+@@ -1,12 +1,12 @@
+ 1, 2, 3, 4, 5, 6, 7, 
+ 10,10,10,10,10,10,10
+-100955,92621,106490,72853,24799,34645,-0
+-100955,92621,106490,72853,24799,34645,0
+-100955,92621,106490,72853,24799,34645,0
+-100955,92621,106490,72853,24799,34645,0
+-157216,143784,157653,119567,71512,56859,-0
+-157216,143784,157653,119567,71512,56859,-0
+-133178,131691,145560,119567,109535,56859,0
+-136021,131691,141200,119567,109535,56859,-0
+-136021,131691,141200,119567,109535,56859,-0
+-136021,131691,141200,119567,109535,56859,-0
++10,10,10,10,10,10,10
++10,10,10,10,10,10,10
++10,10,10,10,10,10,10
++10,10,10,10,10,10,10
++10,10,10,10,10,10,10
++10,10,10,10,10,10,10
++10,10,10,10,10,10,10
++10,10,10,10,10,10,10
++10,10,10,10,10,10,10
++10,10,10,10,10,10,10
+diff --git a/eureca_dhcs/test/output_tests/NodesTemperatures.csv b/eureca_dhcs/test/output_tests/NodesTemperatures.csv
+new file mode 100644
+index 0000000..e308cbe
+--- /dev/null
++++ b/eureca_dhcs/test/output_tests/NodesTemperatures.csv
+@@ -0,0 +1,12 @@
++1, 2, 3, 4, 5, 6, 7, 
++50.00,50.00,50.00,50.00,50.00,50.00,50.00
++50.00,54.92,60.00,54.85,54.82,54.81,54.78
++50.00,54.95,60.00,54.87,54.83,54.83,54.79
++50.00,54.96,60.00,54.87,54.83,54.83,54.80
++50.00,54.96,60.00,54.87,54.83,54.83,54.80
++50.00,54.96,60.00,54.87,54.83,54.83,54.80
++50.00,54.96,60.00,54.87,54.83,54.83,54.80
++50.00,54.96,60.00,54.87,54.83,54.83,54.80
++50.00,54.96,60.00,54.87,54.83,54.83,54.80
++50.00,54.96,60.00,54.87,54.83,54.83,54.80
++55.00,57.41,60.00,57.20,57.05,57.13,57.09
+diff --git a/eureca_dhcs/test/test_1.py b/eureca_dhcs/test/test_1.py
+index 9744587..22fe411 100644
+--- a/eureca_dhcs/test/test_1.py
++++ b/eureca_dhcs/test/test_1.py
+@@ -18,6 +18,7 @@ import numpy as np
+ from eureca_dhcs.node import Node
+ from eureca_dhcs.branch import Branch
+ from eureca_dhcs.network import Network
++from eureca_dhcs.soil import Soil
+ from eureca_dhcs.exceptions import DuplicateNode, WrongNodeType
+ 
+ 
+@@ -87,9 +88,14 @@ class TestNodesBranches:
+             idx="A",
+             supply_node="3",
+             demand_node="4",
+-            pipe_diameter=0.5,  # [m]
++            pipe_ext_diameter=0.5,  # [m]
+             pipe_len=10,  # [m]
+             roughness=0.2,  # [-]
++            pipe_thickness=0.01,  # [m]
++            pipe_depth=0.8,  # [m]
++            insulation_thickness=0.01,  # [m]
++            pipe_conductivity=50.0,  # [W/(m/K)]
++            insulation_conductivity=0.1,  # [m]
+             starting_temperature=50.0,  # [°C]
+             nodes_objects_dict=None,
+         )
+@@ -118,8 +124,13 @@ class TestNodesBranches:
+             idx="A",
+             supply_node="800000",
+             demand_node="100000000000",
+-            pipe_diameter=0.5,  # [m]
++            pipe_ext_diameter=0.5,  # [m]
+             roughness=0.2,  # [-]
++            pipe_thickness=0.01,  # [m]
++            pipe_depth=0.8,  # [m]
++            insulation_thickness=0.01,  # [m]
++            pipe_conductivity=50.0,  # [W/(m/K)]
++            insulation_conductivity=0.1,  # [m]
+             starting_temperature=50.0,  # [°C]
+             nodes_objects_dict=nodes_objects_dict,
+         )
+@@ -144,7 +155,8 @@ class TestNetwork:
+             os.path.join("eureca_dhcs", "test", "network_config", "branches.json"), "r"
+         ) as outfile:
+             branches = json.load(outfile)
+-        Network(nodes_dict=nodes, branches_dict=branches)
++        soil = Soil()
++        Network(nodes_dict=nodes, branches_dict=branches, soil_obj=soil)
+ 
+     def test_network_from_shape(self):
+         Node._counter = 0
+@@ -153,10 +165,11 @@ class TestNetwork:
+ 
+         path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "lines.shp")
+         path_nodes = os.path.join("eureca_dhcs", "test", "input_tests", "nodes.shp")
+-
++        soil = Soil()
+         network = Network.from_shapefiles(
+             path_nodes,
+             path_lines,
++            soil,
+             output_path=os.path.join("eureca_dhcs", "test", "output_tests"),
+         )
+ 
+@@ -166,4 +179,5 @@ class TestNetwork:
+         network.load_boundary_conditions_from_excel(boundaries, 10)
+         for iteration in range(10):
+             network.solve_hydraulic_balance(iteration)
+-        network.save_hydraulic_results()
++            sol = network.solve_thermal_balance(iteration)
++        network.save_results()
+diff --git a/output/BranchMassFlowRates.csv b/output/BranchMassFlowRates.csv
+new file mode 100644
+index 0000000..d1ee381
+--- /dev/null
++++ b/output/BranchMassFlowRates.csv
+@@ -0,0 +1,4 @@
++1, 2, 3, 5, 6, 4, 
++50.00,50.00,50.00,50.00,50.00,50.00
++30.00,50.00,80.00,50.00,30.00,30.00
++30.00,50.00,80.00,50.00,30.00,30.00
+diff --git a/output/BranchTemperatures.csv b/output/BranchTemperatures.csv
+new file mode 100644
+index 0000000..0d60d56
+--- /dev/null
++++ b/output/BranchTemperatures.csv
+@@ -0,0 +1,4 @@
++1, 2, 3, 5, 6, 4, 
++55.00,55.00,55.00,55.00,55.00,55.00
++50.01,59.78,56.00,55.89,55.74,55.85
++49.89,59.92,56.07,56.00,55.83,55.93
+diff --git a/output/NodesPressures.csv b/output/NodesPressures.csv
+index d8295d9..6a23279 100644
+--- a/output/NodesPressures.csv
++++ b/output/NodesPressures.csv
+@@ -1,102 +1,4 @@
+ 1, 2, 3, 4, 5, 6, 7, 
+ 10,10,10,10,10,10,10
+-52570,18765,27655,50915,-61421,-74062,-0
+-52570,18765,27655,50915,-61421,-74062,0
+-52570,18765,27655,50915,-61421,-74062,0
+-52570,18765,27655,50915,-61421,-74062,0
+-78007,40862,47608,76110,-39323,-51964,0
+-78007,40862,47608,76110,-39323,-51964,0
+-68125,45743,47608,66903,31390,-47084,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
+-65146,46762,47608,64117,32410,-13854,0
++1275679,1269326,1270285,1264678,1264533,1212275,-0
++1276143,1269800,1270760,1265150,1265006,1212728,0
+diff --git a/output/NodesTemperatures.csv b/output/NodesTemperatures.csv
+new file mode 100644
+index 0000000..5a5f91d
+--- /dev/null
++++ b/output/NodesTemperatures.csv
+@@ -0,0 +1,4 @@
++1, 2, 3, 4, 5, 6, 7, 
++50.00,50.00,50.00,50.00,50.00,50.00,50.00
++50.00,56.12,60.00,56.00,55.89,55.85,55.74
++50.00,56.16,60.00,56.07,56.00,55.93,55.83
+diff --git a/output_ring/BranchMassFlowRates.csv b/output_ring/BranchMassFlowRates.csv
+index 89faee4..8982697 100644
+--- a/output_ring/BranchMassFlowRates.csv
++++ b/output_ring/BranchMassFlowRates.csv
+@@ -1,22 +1,4 @@
+ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 
+ 50.00,50.00,50.00,50.00,50.00,50.00,50.00,50.00,50.00,50.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
+-125.00,62.52,62.48,-17.49,50.00,10.02,30.00,50.00,-0.02,10.00
++50.00,50.00,50.00,50.00,50.00,50.00,50.00,50.00,50.00,50.00
++50.00,50.00,50.00,50.00,50.00,50.00,50.00,50.00,50.00,50.00
+diff --git a/output_ring/BranchTemperatures.csv b/output_ring/BranchTemperatures.csv
+new file mode 100644
+index 0000000..8fe76a0
+--- /dev/null
++++ b/output_ring/BranchTemperatures.csv
+@@ -0,0 +1,4 @@
++1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 
++55.00,55.00,55.00,55.00,55.00,55.00,55.00,55.00,55.00,55.00
++50.11,50.13,50.13,50.17,59.97,59.96,50.13,50.13,50.12,55.04
++49.99,49.97,49.97,49.94,59.98,59.98,49.96,49.96,49.96,54.96
+diff --git a/output_ring/NodesPressures.csv b/output_ring/NodesPressures.csv
+index 63aaef6..c02ee03 100644
+--- a/output_ring/NodesPressures.csv
++++ b/output_ring/NodesPressures.csv
+@@ -1,22 +1,4 @@
+ 1, 2, 3, 4, 5, 6, 7, 8, 9, 
+ 10,10,10,10,10,10,10,10,10
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
+-24912,13338,10598,23956,-17767,10642,-1409,-209953,0
++10,10,10,10,10,10,10,10,10
++10,10,10,10,10,10,10,10,10
+diff --git a/output_ring/NodesTemperatures.csv b/output_ring/NodesTemperatures.csv
+new file mode 100644
+index 0000000..ca03e14
+--- /dev/null
++++ b/output_ring/NodesTemperatures.csv
+@@ -0,0 +1,4 @@
++1, 2, 3, 4, 5, 6, 7, 8, 9, 
++50.00,50.00,50.00,50.00,50.00,50.00,50.00,50.00,50.00
++50.00,60.00,50.13,50.11,59.97,55.04,50.13,50.13,55.04
++50.00,60.00,49.97,49.99,59.98,54.97,49.96,49.96,54.96
+diff --git a/output_ring/logging.log b/output_ring/logging.log
+index e0685bb..e69de29 100644
+--- a/output_ring/logging.log
++++ b/output_ring/logging.log
+@@ -1,20 +0,0 @@
+-2022-05-16 18:24:37,273 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,279 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,285 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,291 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,304 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,318 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,331 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,343 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,355 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,368 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,381 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,394 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,408 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,422 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,433 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,445 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,456 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,468 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,480 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable
+-2022-05-16 18:24:37,497 - root - WARNING - Branch 9, friction_factor over 0.1: 13.723195616028612 [-]. The hydraulic system can be unstable

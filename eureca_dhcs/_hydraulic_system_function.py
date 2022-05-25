@@ -67,7 +67,13 @@ def hydraulic_balance_system(x, q, network):
         #     - x[
         #         branch._supply_node_object._unique_matrix_idx + network._branches_number
         #     ]
-        #     + x[branch._unique_matrix_idx] * branch.get_hydraulic_resistance()
+        #     + x[branch._unique_matrix_idx]
+        #     * 2
+        #     * x[
+        #         network._branches_number
+        #         + network._nodes_number
+        #         + branch._unique_matrix_idx
+        #     ]
         # )
 
         # Darcy–Weisbach equation for each branch
@@ -86,7 +92,7 @@ def hydraulic_balance_system(x, q, network):
             * x[branch._unique_matrix_idx] ** 2
             * 8
             * branch._pipe_len
-            / (np.pi**2 * branch._pipe_int_diameter**5 * branch.get_density())
+            / (np.pi**2 * branch.get_density() * branch._pipe_int_diameter**5)  #  )
         )
 
         # Colebrook - White equation for each branch
@@ -96,11 +102,11 @@ def hydraulic_balance_system(x, q, network):
         #         + network._nodes_numbes
         #         + branch._unique_matrix_idx
         #     ]
-        reinolds = (
-            4
-            * x[branch._unique_matrix_idx]
-            / (np.pi * branch.get_dynamic_viscosity() * branch._pipe_int_diameter)
-        )
+        # reinolds = (
+        #     4
+        #     * x[branch._unique_matrix_idx]
+        #     / (np.pi * branch.get_dynamic_viscosity() * branch._pipe_int_diameter)
+        # )
         # if np.abs(reinolds) > 2300:
         system.append(
             1
