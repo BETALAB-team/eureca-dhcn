@@ -16,8 +16,8 @@ from eureca_dhcs.soil import Soil
 # from ..network import Network
 # from ..soil import Soil
 
-time_int = 1
-n_timestep = 100
+time_int = 600
+n_timestep = int(600 / time_int * 50)
 
 path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "test_temp_1_lines.shp")
 path_nodes = os.path.join(
@@ -123,7 +123,11 @@ ax3.plot(
 ax4.plot(
     bp2.values,
     linestyle="-.",
-    label=["supply branch 1", "supply branch 2", "demand branch"],
+    label=[
+        "demand branch",
+        "supply branch 2",
+        "supply branch 1",
+    ],
 )
 
 ax1.set_title("One line 10 segments test")

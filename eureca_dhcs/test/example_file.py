@@ -13,10 +13,14 @@ import os
 from eureca_dhcs.network import Network
 from eureca_dhcs.soil import Soil
 
-path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "lines.shp")
-path_nodes = os.path.join("eureca_dhcs", "test", "input_tests", "nodes.shp")
+path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "test_temp_1_lines.shp")
+path_nodes = os.path.join(
+    "eureca_dhcs", "test", "input_tests", "test_temp_1_points.shp"
+)
 # Boundary condition
-boundaries = os.path.join("eureca_dhcs", "test", "input_tests", "conditions.xlsx")
+boundaries = os.path.join(
+    "eureca_dhcs", "test", "input_tests", "conditions_temp_test.xlsx"
+)
 soil = Soil()
 network = Network.from_shapefiles(path_nodes, path_lines, soil, output_path="output")
 network.load_boundary_conditions_from_excel(boundaries, 100)
@@ -24,7 +28,7 @@ network.load_boundary_conditions_from_excel(boundaries, 100)
 
 # Risolvere problema roughness!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # %%
-for iteration in range(10):
+for iteration in range(14):
     x = network.solve_hydraulic_balance(iteration)
 network.save_hydraulic_results()
 
