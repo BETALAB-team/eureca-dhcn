@@ -327,9 +327,9 @@ class Branch:
                 f"Branch {self._idx}, mass_flow_rate must be a float: {value}"
             )
         if np.abs(value) < 1e-5:
-            value = 1e-5
+            # value = 1e-5
             logging.warning(
-                f"Branch {self._idx}, mass_flow_rate very small: {value}\nUnstable system. Substituted to 0.001 kg/s"
+                f"Branch {self._idx}, mass_flow_rate very small: {value}. Unstable system. Substituted to 0.00001 kg/s"
             )
         self.__mass_flow_rate = value
         self._mass_flow_rate_array = np.append(self._mass_flow_rate_array, value)

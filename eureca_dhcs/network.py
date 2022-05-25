@@ -606,7 +606,7 @@ class Network:
             )
         # First try vector
         x0 = self._generate_hydraulic_balance_starting_vector()
-        x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
+        x = root(hydraulic_balance_system, x0, args=(q, self), method="lm")
         # print(f"\n############## timestep {timestep} ###########")
         # print("m0: ", [f"{m:.2f}" for m in x0[: self._branches_number]])
         # # print("f0: ", [f"{f:.4f}" for f in x0[-self._branches_number :]])
@@ -697,18 +697,19 @@ class Network:
         #         for branch in self._branches_object_ordered_list
         #     ]
         # )
+        r = np.random.randint(10) / 10
         branches_mass_flow_rates = np.array(
             [
-                branch._mass_flow_rate + 1.0
+                branch._mass_flow_rate + r / 10
                 for branch in self._branches_object_ordered_list
             ]
         )
         nodes_pressures = np.array(
-            [node._node_pressure + 10.0 for node in self._nodes_object_ordered_list]
+            [node._node_pressure + r * 10 for node in self._nodes_object_ordered_list]
         )
         branches_friction_factors = np.array(
             [
-                Branch._starting_friction_factor
+                Branch._starting_friction_factor + 0.0001 * r
                 for branch in self._branches_object_ordered_list
             ]
         )

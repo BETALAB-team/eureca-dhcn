@@ -156,7 +156,7 @@ def hydraulic_balance_system(x, q, network):
                 - 64
                 / (
                     4
-                    * x[branch._unique_matrix_idx]
+                    * np.abs(x[branch._unique_matrix_idx])
                     / (
                         np.pi
                         * branch.get_dynamic_viscosity()

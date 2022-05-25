@@ -30,11 +30,11 @@ soil = Soil()
 network = Network.from_shapefiles(
     path_nodes, path_lines, soil, output_path=out_path, temperature_mode="Cooling"
 )
-network.load_boundary_conditions_from_excel(boundaries, 2)
+network.load_boundary_conditions_from_excel(boundaries, 51)
 
 # %%
-for iteration in range(2):
+for iteration in range(51):
     network.solve_hydraulic_balance(iteration)
-    network.solve_thermal_balance(iteration, time_interval=3600)
+    # network.solve_thermal_balance(iteration, time_interval=60)
 network.save_hydraulic_results()
-print(network._branches_object_dict["7"]._mass_flow_rate)
+print(network._branches_object_dict["2"]._mass_flow_rate_array.transpose())
