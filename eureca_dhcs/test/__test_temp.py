@@ -17,7 +17,7 @@ from eureca_dhcs.soil import Soil
 # from ..soil import Soil
 
 time_int = 600
-n_timestep = int(600 / time_int * 50)
+n_timestep = int(500)
 
 path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "test_temp_1_lines.shp")
 path_nodes = os.path.join(
@@ -135,8 +135,8 @@ ax2.set_title("Two branches in one test")
 ax3.set_title("One line 10 segments test")
 ax4.set_title("Two branches in one test")
 ax1.text(
-    0.65,
-    0.25,
+    0.7,
+    0.1,
     f"Final temperature last node (after 600 time steps):\n{last_t_nt1} °C",
     horizontalalignment="center",
     verticalalignment="center",
@@ -144,8 +144,8 @@ ax1.text(
     bbox=dict(facecolor="white", alpha=0.99),
 )
 ax2.text(
-    0.65,
-    0.25,
+    0.7,
+    0.1,
     f"Final temperature last node (after 600 time steps):\n{last_t_nt2} °C",
     horizontalalignment="center",
     verticalalignment="center",
@@ -172,12 +172,13 @@ ax2.text(
 # )
 
 for ax in [ax1, ax2]:
-    ax.legend()
+    ax.legend(loc="lower left")
     ax.grid()
     ax.set_ylabel("Temperature [°C]")
     ax.set_xlabel(f"Timestep [{time_int} s]")
+    ax.set_ylim([43, 51])
 for ax in [ax3, ax4]:
-    ax.legend()
+    ax.legend(loc="upper right")
     ax.grid()
     ax.set_ylabel("Mass flow rate [kg/s]")
     ax.set_xlabel(f"Timestep [{time_int} s]")

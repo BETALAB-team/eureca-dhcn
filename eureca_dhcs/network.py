@@ -697,7 +697,7 @@ class Network:
         #         for branch in self._branches_object_ordered_list
         #     ]
         # )
-        r = np.random.randint(10) / 10
+        r = np.random.randint(50) / 10
         branches_mass_flow_rates = np.array(
             [
                 branch._mass_flow_rate + r / 10
