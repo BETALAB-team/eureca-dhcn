@@ -12,28 +12,36 @@ import os
 
 from eureca_dhcs.network import Network
 from eureca_dhcs.soil import Soil
+from eureca_dhcs._thermal_system_function import (
+    thermal_balance_system_optimization,
+    thermal_balance_system_inverse,
+)
 
-path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "test_temp_1_lines.shp")
-path_nodes = os.path.join(
-    "eureca_dhcs", "test", "input_tests", "test_temp_1_points.shp"
-)
-# Boundary condition
-boundaries = os.path.join(
-    "eureca_dhcs", "test", "input_tests", "conditions_temp_test.xlsx"
-)
+path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "lines.shp")
+path_nodes = os.path.join("eureca_dhcs", "test", "input_tests", "nodes.shp")
 soil = Soil()
-network = Network.from_shapefiles(path_nodes, path_lines, soil, output_path="output")
-network.load_boundary_conditions_from_excel(boundaries, 100)
+network = Network.from_shapefiles(
+    path_nodes,
+    path_lines,
+    soil,
+    output_path=os.path.join("eureca_dhcs", "test", "output_tests"),
+)
+
+boundaries = os.path.join("eureca_dhcs", "test", "input_tests", "conditions.xlsx")
+network.load_boundary_conditions_from_excel(boundaries, 30)
 
 
-# Risolvere problema roughness!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# %%
-for iteration in range(20):
-    x = network.solve_hydraulic_balance(iteration)
+#%%
+for iteration in range(10):
+    network.solve_hydraulic_balance(iteration)
+    sol = network.solve_thermal_balance(iteration)
 network.save_hydraulic_results()
-
-
 for branch in network._branches_object_ordered_list:
     print(f"Branch {branch._idx}")
     print(f"\text diameter [m]: {branch._pipe_ext_diameter}")
     print(f"\tint diameter [m]: {branch._pipe_int_diameter}")
+# Risolvere problema roughness!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# # %%
+# for iteration in range(20):
+#     x = network.solve_hydraulic_balance(iteration)
+#
