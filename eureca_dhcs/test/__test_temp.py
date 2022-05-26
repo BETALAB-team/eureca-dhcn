@@ -16,7 +16,7 @@ from eureca_dhcs.soil import Soil
 # from ..network import Network
 # from ..soil import Soil
 
-time_int = 600
+time_int = 50
 n_timestep = int(500)
 
 path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "test_temp_1_lines.shp")
@@ -172,11 +172,12 @@ ax2.text(
 # )
 
 for ax in [ax1, ax2]:
-    ax.legend(loc="lower left")
+    # ax.legend(loc="lower left")
     ax.grid()
     ax.set_ylabel("Temperature [°C]")
     ax.set_xlabel(f"Timestep [{time_int} s]")
-    ax.set_ylim([43, 51])
+    ax.set_ylim([0, 51])
+    ax.set_xlim([0, 51])
 for ax in [ax3, ax4]:
     ax.legend(loc="upper right")
     ax.grid()
