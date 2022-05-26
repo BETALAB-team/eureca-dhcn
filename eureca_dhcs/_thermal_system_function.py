@@ -184,7 +184,6 @@ def thermal_balance_system_inverse(network, q, time_interval):
         # AT[line + network._branches_number, line + network._branches_number] = 1
         # AT[line + network._branches_number, line] = -2
     x = np.linalg.solve(AT, q)
-
     # Calc T average branch
     t_branch = np.zeros(network._branches_number)
     for branch in network._branches_object_ordered_list:

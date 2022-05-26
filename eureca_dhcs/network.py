@@ -608,6 +608,14 @@ class Network:
         # First try vector
         x0 = self._generate_hydraulic_balance_starting_vector(q)
         x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
+        max_iter = 0
+        while not x.success and max_iter < 5:
+            logging.warning(
+                f"Timestep {timestep}: hydraulic system solution not improving, trying with a different x0"
+            )
+            x0[0 : self._nodes_number] += 1
+            x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
+            max_iter += 1
         # x = root(hydraulic_balance_system, x0, args=(q, self), method="lm")
         # print(f"\n############## timestep {timestep} ###########")
         # print("m0: ", [f"{m:.2f}" for m in x0[: self._branches_number]])
