@@ -32,7 +32,7 @@ network.load_boundary_conditions_from_excel(boundaries, 30)
 
 
 #%%
-for iteration in range(10):
+for iteration in range(30):
     network.solve_hydraulic_balance(iteration)
     sol = network.solve_thermal_balance(iteration)
 network.save_hydraulic_results()

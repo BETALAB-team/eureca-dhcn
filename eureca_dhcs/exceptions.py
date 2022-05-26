@@ -31,3 +31,7 @@ class EmptyNetworkNodes(Exception):
 
 class BoundaryConditionNotProvided(Exception):
     pass
+
+
+class HydraulicSystemNotSolved(Exception):
+    pass

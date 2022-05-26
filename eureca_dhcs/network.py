@@ -25,6 +25,7 @@ from eureca_dhcs.exceptions import (
     DuplicateNode,
     WrongNodeType,
     BoundaryConditionNotProvided,
+    HydraulicSystemNotSolved,
 )
 
 
@@ -608,15 +609,25 @@ class Network:
         # First try vector
         x0 = self._generate_hydraulic_balance_starting_vector(q)
         x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
-        max_iter = 0
-        while not x.success and max_iter < 5:
+        n_try = 0
+        while not x.success:
+            n_try += 1
+            if n_try > 20:
+                logging.critical(
+                    f"Timestep {timestep}: hydraulic system solution not found after 20 tries"
+                )
+                # raise HydraulicSystemNotSolved(
+                #     f"Timestep {timestep}: hydraulic system solution not found after 20 tries"
+                # )
+                break
             logging.warning(
                 f"Timestep {timestep}: hydraulic system solution not improving, trying with a different x0"
             )
-            x0[0 : self._nodes_number] += 1
+            x0[0 : self._branches_number] += (
+                np.random.rand(self._branches_number) * 10 - 5
+            )
             x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
-            max_iter += 1
-        # x = root(hydraulic_balance_system, x0, args=(q, self), method="lm")
+        # # x = root(hydraulic_balance_system, x0, args=(q, self), method="lm")
         # print(f"\n############## timestep {timestep} ###########")
         # print("m0: ", [f"{m:.2f}" for m in x0[: self._branches_number]])
         # # print("f0: ", [f"{f:.4f}" for f in x0[-self._branches_number :]])
