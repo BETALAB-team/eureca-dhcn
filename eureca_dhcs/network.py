@@ -10,7 +10,7 @@ import logging
 import numpy as np
 import geopandas as gpd
 import pandas as pd
-from scipy.optimize import root
+from scipy.optimize import minimize, root
 
 from eureca_dhcs.node import Node
 from eureca_dhcs.branch import Branch
@@ -599,14 +599,16 @@ class Network:
 
     def solve_hydraulic_balance(self, timestep: int):
         # Boundary condition
+        logging.debug(f"Timestep {timestep}")
         q = self._generate_hydraulic_balance_boundary_condition(timestep)
         if q[0 : self._nodes_number].sum() > 1e-10:
             raise ValueError(
                 f"Timestep {timestep}: input - output mass flow rates not equal. Mass balance cannot be solved"
             )
         # First try vector
-        x0 = self._generate_hydraulic_balance_starting_vector()
-        x = root(hydraulic_balance_system, x0, args=(q, self), method="lm")
+        x0 = self._generate_hydraulic_balance_starting_vector(q)
+        # x = root(hydraulic_balance_system, x0, args=(q, self), method="lm")
+        x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
         # print(f"\n############## timestep {timestep} ###########")
         # print("m0: ", [f"{m:.2f}" for m in x0[: self._branches_number]])
         # # print("f0: ", [f"{f:.4f}" for f in x0[-self._branches_number :]])
@@ -671,7 +673,7 @@ class Network:
         [q.append(0) for i in range(self._branches_number)]
         return np.array(q)
 
-    def _generate_hydraulic_balance_starting_vector(self):
+    def _generate_hydraulic_balance_starting_vector(self, q):
         """
         Generate the starting guess vector from the value of the previous timestep
         stored in the nodes and branches abjects
@@ -697,21 +699,27 @@ class Network:
         #         for branch in self._branches_object_ordered_list
         #     ]
         # )
-        r = np.random.randint(50) / 10
-        branches_mass_flow_rates = np.array(
-            [
-                branch._mass_flow_rate + r / 10
-                for branch in self._branches_object_ordered_list
-            ]
-        )
-        nodes_pressures = np.array(
-            [node._node_pressure + r * 10 for node in self._nodes_object_ordered_list]
-        )
+        # branches_mass_flow_rates = np.array(
+        #     [
+        #         branch._mass_flow_rate + r / 10
+        #         for branch in self._branches_object_ordered_list
+        #     ]
+        # )
+        # nodes_pressures = np.array(
+        #     [node._node_pressure + r * 10 for node in self._nodes_object_ordered_list]
+        # )
+
+        # branches_friction_factors = np.array(
+        #     [
+        #         Branch._starting_friction_factor + 0.0001 * r
+        #         for branch in self._branches_object_ordered_list
+        #     ]
+        # )
+        av_mass_flow = np.abs(q[0 : self._nodes_number]).mean()
+        branches_mass_flow_rates = np.array([av_mass_flow] * self._branches_number)
+        nodes_pressures = np.array([Node._starting_pressure] * self._nodes_number)
         branches_friction_factors = np.array(
-            [
-                Branch._starting_friction_factor + 0.0001 * r
-                for branch in self._branches_object_ordered_list
-            ]
+            [Branch._starting_friction_factor] * self._branches_number
         )
         return np.hstack(
             [branches_mass_flow_rates, nodes_pressures, branches_friction_factors]
