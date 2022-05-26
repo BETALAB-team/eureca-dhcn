@@ -54,7 +54,7 @@ def hydraulic_balance_system(x, q, network):
     # System id the list where equations are inserted
     system = []
     # node balances
-    # This equations are the mass balance for each node
+    # This equation are the mass balance for each node
     for node in network._nodes_object_ordered_list[1:]:
         supply_idx = node.get_supply_branches_unique_idx()
         demand_idx = node.get_demand_branches_unique_idx()
@@ -76,7 +76,7 @@ def hydraulic_balance_system(x, q, network):
         #     ]
         # )
 
-        # Darcy–Weisbach equation for each branch
+        # Darcy–Weissbach equation for each branch
         system.append(
             x[branch._demand_node_object._unique_matrix_idx + network._branches_number]
             - x[
@@ -88,8 +88,8 @@ def hydraulic_balance_system(x, q, network):
                 + network._nodes_number
                 + branch._unique_matrix_idx
             ]
-            * np.sign(x[branch._unique_matrix_idx])
-            * x[branch._unique_matrix_idx] ** 2
+            * np.abs(x[branch._unique_matrix_idx])
+            * x[branch._unique_matrix_idx]
             * 8
             * branch._pipe_len
             / (np.pi**2 * branch.get_density() * branch._pipe_int_diameter**5)  #  )
@@ -102,12 +102,14 @@ def hydraulic_balance_system(x, q, network):
         #         + network._nodes_numbes
         #         + branch._unique_matrix_idx
         #     ]
-        reinolds = (
-            4
-            * x[branch._unique_matrix_idx]
-            / (np.pi * branch.get_dynamic_viscosity() * branch._pipe_int_diameter)
+        reinolds = np.abs(
+            (
+                4
+                * x[branch._unique_matrix_idx]
+                / (np.pi * branch.get_dynamic_viscosity() * branch._pipe_int_diameter)
+            )
         )
-        if np.abs(reinolds) > 2300:
+        if reinolds > 2300:
             system.append(
                 1
                 / np.sqrt(
@@ -137,7 +139,7 @@ def hydraulic_balance_system(x, q, network):
                     )
                 )
             )
-        elif np.abs(reinolds) < 640:
+        elif reinolds < 640:
             system.append(
                 x[
                     network._branches_number
@@ -153,16 +155,7 @@ def hydraulic_balance_system(x, q, network):
                     + network._nodes_number
                     + branch._unique_matrix_idx
                 ]
-                - 64
-                / (
-                    4
-                    * np.abs(x[branch._unique_matrix_idx])
-                    / (
-                        np.pi
-                        * branch.get_dynamic_viscosity()
-                        * branch._pipe_int_diameter
-                    )
-                )
+                - 64 / reinolds
             )
     system.append(
         x[network._branches_number + network._nodes_number - 1]
