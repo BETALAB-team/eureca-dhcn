@@ -607,8 +607,8 @@ class Network:
             )
         # First try vector
         x0 = self._generate_hydraulic_balance_starting_vector(q)
-        # x = root(hydraulic_balance_system, x0, args=(q, self), method="lm")
         x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
+        # x = root(hydraulic_balance_system, x0, args=(q, self), method="lm")
         # print(f"\n############## timestep {timestep} ###########")
         # print("m0: ", [f"{m:.2f}" for m in x0[: self._branches_number]])
         # # print("f0: ", [f"{f:.4f}" for f in x0[-self._branches_number :]])
