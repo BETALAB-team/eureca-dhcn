@@ -371,7 +371,7 @@ class Branch:
             )
             # value = 0.1
         if value < 0.0:
-            logging.warning(
+            logging.error(
                 f"Branch {self._idx}, negative friction factor: {value} [-]. The hydraulic system can be unstable"
             )
         self.__friction_factor = value
