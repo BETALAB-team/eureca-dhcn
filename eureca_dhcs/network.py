@@ -15,7 +15,10 @@ from scipy.optimize import minimize, root
 from eureca_dhcs.node import Node
 from eureca_dhcs.branch import Branch
 from eureca_dhcs.soil import Soil
-from eureca_dhcs._hydraulic_system_function import hydraulic_balance_system
+from eureca_dhcs._hydraulic_system_function import (
+    hydraulic_balance_system,
+    hydraulic_balance_system_jac,
+)
 from eureca_dhcs._thermal_system_function import (
     thermal_balance_system_optimization,
     thermal_balance_system_inverse,
@@ -608,25 +611,50 @@ class Network:
             )
         # First try vector
         x0 = self._generate_hydraulic_balance_starting_vector(q)
-        x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
-        n_try = 0
-        while not x.success:
-            n_try += 1
-            if n_try > 20:
-                logging.critical(
-                    f"Timestep {timestep}: hydraulic system solution not found after 20 tries"
-                )
-                # raise HydraulicSystemNotSolved(
-                #     f"Timestep {timestep}: hydraulic system solution not found after 20 tries"
-                # )
-                break
+        x = root(
+            hydraulic_balance_system,
+            x0,
+            args=(q, self),
+            jac=hydraulic_balance_system_jac,
+            method="hybr",
+            tol=1e-10,
+            options={"xtol": 1e-10},
+        )
+        if not x.success:
             logging.warning(
-                f"Timestep {timestep}: hydraulic system solution not improving, trying with a different x0"
+                f"Timestep {timestep}: hydraulic system solution not improving, success: {x.success}"
             )
-            x0[0 : self._branches_number] += (
-                np.random.rand(self._branches_number) * 10 - 5
-            )
-            x = root(hydraulic_balance_system, x0, args=(q, self), method="hybr")
+        # n_try = 0
+        # while not x.success:
+        #     n_try += 1
+        #     if n_try > 20:
+        #         logging.critical(
+        #             f"Timestep {timestep}: hydraulic system solution not found after 20 tries"
+        #         )
+        #         # raise HydraulicSystemNotSolved(
+        #         #     f"Timestep {timestep}: hydraulic system solution not found after 20 tries"
+        #         # )
+        #         break
+        #     logging.warning(
+        #         f"Timestep {timestep}: hydraulic system solution not improving, trying with a different x0"
+        #     )
+        #     x0 = x.x
+        #     # Generate a random x0 multiplying x0 by a random factor [0.9; 1.1]
+        #     # This is to force root function to find a solution
+        #     percentage = 20
+        #     x0[: self._branches_number + self._nodes_number] *= 1 - (
+        #         (np.random.rand(self._branches_number + self._nodes_number) - 0.5)
+        #         * percentage
+        #         / 100
+        #     )
+        #     x = root(
+        #         hydraulic_balance_system,
+        #         x0,
+        #         args=(q, self),
+        #         method="hybr",
+        #         tol=1e-10,
+        #         options={"xtol": 1e-10},
+        #     )
         # # x = root(hydraulic_balance_system, x0, args=(q, self), method="lm")
         # print(f"\n############## timestep {timestep} ###########")
         # print("m0: ", [f"{m:.2f}" for m in x0[: self._branches_number]])
@@ -718,6 +746,7 @@ class Network:
         #         for branch in self._branches_object_ordered_list
         #     ]
         # )
+        # r = 0
         # branches_mass_flow_rates = np.array(
         #     [
         #         branch._mass_flow_rate + r / 10
@@ -733,6 +762,9 @@ class Network:
         #         Branch._starting_friction_factor + 0.0001 * r
         #         for branch in self._branches_object_ordered_list
         #     ]
+        # )
+        # a = np.hstack(
+        #     [branches_mass_flow_rates, nodes_pressures, branches_friction_factors]
         # )
         av_mass_flow = np.abs(q[0 : self._nodes_number]).mean()
         branches_mass_flow_rates = np.array([av_mass_flow] * self._branches_number)
