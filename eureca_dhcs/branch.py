@@ -336,6 +336,8 @@ class Branch:
         self._reinolds_number = (
             4 * value / (np.pi * self.get_dynamic_viscosity() * self._pipe_int_diameter)
         )
+        v = value / self.get_density()  # m3/s
+        self._fluid_velocity = 4 * v / (self._pipe_int_diameter**2 * np.pi)  # m /s
 
     @property
     def _reinolds_number(self) -> float:
@@ -352,6 +354,18 @@ class Branch:
                 f"Branch {self._idx}, reinolds is going under 2300. Reinolds: {value}"
             )
         self.__reinolds_number = value
+
+    @property
+    def _fluid_velocity(self) -> float:
+        return self.__fluid_velocity
+
+    @_fluid_velocity.setter
+    def _fluid_velocity(self, value: float):
+        try:
+            value = float(value)
+        except ValueError:
+            raise TypeError(f"Branch {self._idx}, velocity must be a float: {value}")
+        self.__fluid_velocity = value
 
     @property
     def _friction_factor(self) -> float:
@@ -463,6 +477,15 @@ class Branch:
         )  # [(m K)/W]
         U = self._pipe_len / R  # [W/K]
         self.ground_loss_factor = U  # W/k
+
+    def check_courant_stability(self, time_interval):
+        if (
+            time_interval < self._pipe_len / self._fluid_velocity
+            and self._mass_flow_rate > 5e-5
+        ):
+            logging.warning(
+                f"Branch {self._idx}, the temperature profile can be unstable. Subdivide the branch or increase the timestep (at least to {self._pipe_len / self._fluid_velocity:.0f} s)"
+            )
 
     # def get_ground_temperature(self):
     #     # TODO: put real_t_ground
