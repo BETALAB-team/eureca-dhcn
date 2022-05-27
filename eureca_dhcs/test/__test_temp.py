@@ -16,7 +16,7 @@ from eureca_dhcs.soil import Soil
 # from ..network import Network
 # from ..soil import Soil
 
-time_int = 600
+time_int = 100
 n_timestep = int(500)
 
 path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "test_temp_1_lines.shp")
@@ -34,9 +34,9 @@ soil = Soil()
 network = Network.from_shapefiles(
     path_nodes, path_lines, soil, output_path=out_path, temperature_mode="Cooling"
 )
-network.load_boundary_conditions_from_excel(boundaries, 600)
+network.load_boundary_conditions_from_excel(boundaries, 100)
 
-for iteration in range(600):
+for iteration in range(100):
     network.solve_hydraulic_balance(iteration)
     network.solve_thermal_balance(iteration, time_interval=time_int)
 network.save_results()
@@ -93,7 +93,7 @@ bt1 = bt1[[col for col in bt1.columns if col.endswith("33")]].iloc[:n_timestep]
 bt2 = bt2[[col for col in bt2.columns if col.endswith("44")]].iloc[:n_timestep]
 
 # line
-fig, [[ax1, ax3], [ax2, ax4]] = plt.subplots(nrows=2, ncols=2, figsize=(15, 25))
+fig, [[ax1, ax3], [ax2, ax4]] = plt.subplots(nrows=2, ncols=2, figsize=(15, 15))
 ax1.plot(
     nt1[["133", "233", "633", "1133"]].values,
     label=["supply node", "second node", "central node", "demand node"],
