@@ -689,7 +689,7 @@ class Network:
         # )
         ################################################################
         x, A, q = thermal_balance_system_inverse(self, q, time_interval)
-        self._set_thermal_balance_results_vector(x)
+        self._set_thermal_balance_results_vector(x, time_interval)
 
         return x, A, q
 
@@ -876,7 +876,7 @@ class Network:
         ):
             node._node_pressure = pressure
 
-    def _set_thermal_balance_results_vector(self, x):
+    def _set_thermal_balance_results_vector(self, x, time_interval):
         """
         Set the new status variables to the nodes and branches objects.
 
@@ -904,6 +904,7 @@ class Network:
             self._branches_object_ordered_list,
         ):
             branch._branch_temperature = temp
+            branch.check_courant_stability(time_interval)
 
     def save_results(self):
         self.save_hydraulic_results()
