@@ -16,8 +16,8 @@ from eureca_dhcs.soil import Soil
 # from ..network import Network
 # from ..soil import Soil
 
-time_int = 100
-n_timestep = int(500)
+time_int = 300
+n_timestep = int(600)
 
 path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "test_temp_1_lines.shp")
 path_nodes = os.path.join(
@@ -34,9 +34,9 @@ soil = Soil()
 network = Network.from_shapefiles(
     path_nodes, path_lines, soil, output_path=out_path, temperature_mode="Cooling"
 )
-network.load_boundary_conditions_from_excel(boundaries, 100)
+network.load_boundary_conditions_from_excel(boundaries, 600)
 
-for iteration in range(100):
+for iteration in range(600):
     network.solve_hydraulic_balance(iteration)
     network.solve_thermal_balance(iteration, time_interval=time_int)
 network.save_results()
@@ -176,8 +176,8 @@ for ax in [ax1, ax2]:
     ax.grid()
     ax.set_ylabel("Temperature [°C]")
     ax.set_xlabel(f"Timestep [{time_int} s]")
-    ax.set_ylim([0, 200])
-    ax.set_xlim([0, 200])
+    ax.set_ylim([40, 52])
+    ax.set_xlim([0, 600])
 for ax in [ax3, ax4]:
     ax.legend(loc="upper right")
     ax.grid()

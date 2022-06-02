@@ -226,5 +226,5 @@ class TestNetwork:
         network.load_boundary_conditions_from_excel(boundaries, 2)
         for iteration in range(2):
             network.solve_hydraulic_balance(iteration)
-            # sol = network.solve_thermal_balance(iteration)
+            sol = network.solve_thermal_balance(iteration)
         network.save_results()
