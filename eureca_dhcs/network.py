@@ -357,8 +357,18 @@ class Network:
         nodes_dict = nodes.to_dict(orient="List")
         nodes_dict = {str(k): np.array(node) for k, node in nodes_dict.items()}
         try:
-            branches = boundaries["Hydraulic"]["Branch"]["Pump pressure raise [Pa]"]
-            branches_dict = branches.to_dict(orient="List")
+            nodes_p = boundaries["Hydraulic"]["Node"]["Pressure [Pa]"]
+            nodes_p_dict = nodes_p.to_dict(orient="List")
+            # Just to convert in str and np.array
+            nodes_p_dict = {
+                str(k): np.array(node) for k, node in nodes_p_dict.items()
+            }
+        except KeyError:
+            nodes_p_dict = {}
+        # Branches pump raise pressure
+        try:
+            branches_p = boundaries["Hydraulic"]["Branch"]["Pump pressure raise [Pa]"]
+            branches_dict = branches_p.to_dict(orient="List")
             # Just to convert in str and np.array
             branches_dict = {
                 str(k): np.array(branch) for k, branch in branches_dict.items()
