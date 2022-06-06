@@ -577,9 +577,10 @@ class Network:
                         :number_of_timesteps
                     ]
                 except KeyError:
-                    raise BoundaryConditionNotProvided(
-                        f"Node {node._idx}: the node is a {node._node_type} node, but no boundary mass flow rate is provided.\nPlease provide a boundary condition"
-                    )
+                    # raise BoundaryConditionNotProvided(
+                    #     f"Node {node._idx}: the node is a {node._node_type} node, but no boundary mass flow rate is provided.\nPlease provide a boundary condition"
+                    # )
+                    logging.warning(f"Node {node._idx}: the node is a {node._node_type} node, but no boundary mass flow rate is provided.\nPlease at least an addition pressure to let the system be solved")
             else:
                 node._boundary_mass_flow_rate = np.zeros(number_of_timesteps)
 
