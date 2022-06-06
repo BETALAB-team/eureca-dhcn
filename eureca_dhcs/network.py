@@ -353,9 +353,9 @@ class Network:
             parse_dates=True,
         )
 
-        nodes = boundaries["Hydraulic"]["Node"]["Mass flow rate [kg/s]"]
-        nodes_dict = nodes.to_dict(orient="List")
-        nodes_dict = {str(k): np.array(node) for k, node in nodes_dict.items()}
+        nodes_m = boundaries["Hydraulic"]["Node"]["Mass flow rate [kg/s]"]
+        nodes_m_dict = nodes_m.to_dict(orient="List")
+        nodes_m_dict = {str(k): np.array(node) for k, node in nodes_m_dict.items()}
         try:
             nodes_p = boundaries["Hydraulic"]["Node"]["Pressure [Pa]"]
             nodes_p_dict = nodes_p.to_dict(orient="List")
@@ -376,7 +376,7 @@ class Network:
         except KeyError:
             branches_dict = {}
         self.load_hydraulic_boundary_conditions(
-            nodes_dict, branches_dict, number_of_timesteps
+            nodes_m_dict, nodes_p_dict, branches_dict, number_of_timesteps
         )
 
         nodes = boundaries["Thermal"]["Node"]["Temperature [°C]"]
@@ -482,7 +482,8 @@ class Network:
 
     def load_hydraulic_boundary_conditions(
         self,
-        nodes_boundary_conditions: dict,
+        nodes_mass_flow_boundary_conditions: dict,
+        nodes_pressure_boundary_conditions: dict,
         branches_boundary_conditions: dict,
         number_of_timesteps: int,
     ):
@@ -494,7 +495,15 @@ class Network:
 
         Parameters
         ----------
-        nodes_boundary_conditions : dict
+        nodes_mass_flow_boundary_conditions : dict
+            Dictionary with the following sintax (mass flow rates of the supply/demend nodes):
+                "1" : np.array([2,2.5,2.5,....]),
+                "3" : np.array([-2,-5,-3,....]),
+                "7" : np.array([2.3,2.6,2,....]),
+                .
+                .
+                ..
+        nodes_pressure_boundary_conditions : dict
             Dictionary with the following sintax (mass flow rates of the supply/demend nodes):
                 "1" : np.array([2,2.5,2.5,....]),
                 "3" : np.array([-2,-5,-3,....]),
@@ -519,7 +528,10 @@ class Network:
 
         """
         self.load_nodes_mass_flow_rate_boundary_condition(
-            nodes_boundary_conditions, number_of_timesteps
+            nodes_mass_flow_boundary_conditions, number_of_timesteps
+        )
+        self.load_nodes_pressure_boundary_condition(
+            nodes_pressure_boundary_conditions, number_of_timesteps
         )
         self.load_branches_pump_pressure_raise_boundary_condition(
             branches_boundary_conditions, number_of_timesteps
@@ -570,6 +582,44 @@ class Network:
                     )
             else:
                 node._boundary_mass_flow_rate = np.zeros(number_of_timesteps)
+
+    def load_nodes_pressure_boundary_condition(
+        self, boundary_conditions: dict, number_of_timesteps: int
+    ):
+        """
+        This method loads the pressure boundary conditions of the nodes.
+        Use Pa as reference unit.
+
+        Parameters
+        ----------
+        boundary_conditions : dict
+            Dictionary with the following sintax:
+                "1" : np.array([2,2.5,2.5,....]),
+                "3" : np.array([-2,-5,-3,....]),
+                "7" : np.array([2.3,2.6,2,....]),
+                .
+                .
+                .
+    
+        number_of_timesteps: int
+            Number of timesteps to be considered
+    
+        Returns
+        -------
+        None.
+    
+        """
+    
+        for node_k, node in self._nodes_object_dict.items():
+            if node_k in boundary_conditions.keys():
+                if len(boundary_conditions[node_k]) < number_of_timesteps:
+                    raise ValueError(
+                        f"Node {node._idx}: the boundary condition for the node is shorter than the number of timesteps. Provide a longer boundary condition"
+                    )
+                node._boundary_pressure = boundary_conditions[node_k][
+                    :number_of_timesteps
+                ]
+    
 
     def load_branches_pump_pressure_raise_boundary_condition(
         self, boundary_conditions: dict, number_of_timesteps: int
