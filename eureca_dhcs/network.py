@@ -576,13 +576,16 @@ class Network:
                     node._boundary_mass_flow_rate = boundary_conditions[node_k][
                         :number_of_timesteps
                     ]
+                    node._boundary_mass_flow_rate_undefined = False
                 except KeyError:
                     # raise BoundaryConditionNotProvided(
                     #     f"Node {node._idx}: the node is a {node._node_type} node, but no boundary mass flow rate is provided.\nPlease provide a boundary condition"
                     # )
+                    node._boundary_mass_flow_rate_undefined = True
                     logging.warning(f"Node {node._idx}: the node is a {node._node_type} node, but no boundary mass flow rate is provided.\nPlease at least an addition pressure to let the system be solved")
             else:
                 node._boundary_mass_flow_rate = np.zeros(number_of_timesteps)
+                node._boundary_mass_flow_rate_undefined = False                
 
     def load_nodes_pressure_boundary_condition(
         self, boundary_conditions: dict, number_of_timesteps: int
