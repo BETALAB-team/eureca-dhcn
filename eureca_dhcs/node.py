@@ -19,6 +19,7 @@ class Node:
 
     _idx_list = []
     _counter = 0
+    _counter_undefined_flow_rate = 0
     # Starting pressure for hydraulic balance.
     # This is used just for the first timestep,
     # then pressure of the previous timestep is used
@@ -211,6 +212,22 @@ class Node:
         if self._node_type != "supply":
             logging.warning(f"Node {self._idx}: temperature set for a non supply node")
         self.__boundary_temperature = value
+        
+    @property
+    def _boundary_mass_flow_rate_undefined(self) -> bool:
+        return self.__boundary_mass_flow_rate_undefined
+
+    @_boundary_mass_flow_rate_undefined.setter
+    def _boundary_mass_flow_rate_undefined(self, value: bool):
+        if not isinstance(value, bool):
+            raise TypeError(
+                f"Node {self._idx}, _boundary_mass_flow_rate_undefined must be a bool: {value}"
+            )
+        self.__boundary_mass_flow_rate_undefined = value
+        if value:
+            self._unique_matrix_idx_undefined_flow_rate = Node._counter_undefined_flow_rate
+            Node._counter_undefined_flow_rate += 1
+
 
     def get_supply_branches_unique_idx(self):
         return [
