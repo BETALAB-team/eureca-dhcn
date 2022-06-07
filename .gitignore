@@ -1,5 +1,6 @@
 eureca_dhcs/test/out*/
 eureca_dhcs/test/ground/
+eureca_dhcs/_hydraulic_system_function_long.py
 output
 output_ring
 .spyproject

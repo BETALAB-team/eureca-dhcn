@@ -34,7 +34,7 @@ network.load_boundary_conditions_from_excel(boundaries, 330)
 
 for iteration in range(330):
     print(iteration)
-    x, q, x0 = network.solve_hydraulic_balance(iteration)
+    # x, q, x0 = network.solve_hydraulic_balance(iteration)
     # network.solve_thermal_balance(iteration, time_interval=time_int)
 network.save_results()
 
