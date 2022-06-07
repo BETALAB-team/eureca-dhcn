@@ -761,7 +761,10 @@ class Network:
         q = []
         for node in self._nodes_object_ordered_list:
             try:
-                q.append(node._boundary_mass_flow_rate[timestep])
+                if node._boundary_mass_flow_rate_undefined:
+                    q.append(0.)
+                else:
+                    q.append(node._boundary_mass_flow_rate[timestep])
             except AttributeError:
                 raise BoundaryConditionNotProvided(
                     f"Node {node._idx}: boundary condition not provided. Be sure to load the boundaries before simulation. "
