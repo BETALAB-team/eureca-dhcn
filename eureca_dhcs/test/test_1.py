@@ -165,6 +165,7 @@ class TestNetwork:
         # Standard Node creation
         Node._counter = 0
         Branch._counter = 0
+        Node._counter_undefined_flow_rate = 0
 
         with open(
             os.path.join("eureca_dhcs", "test", "network_config", "nodes.json"), "r"
@@ -180,6 +181,7 @@ class TestNetwork:
     def test_network_from_shape(self):
         Node._counter = 0
         Branch._counter = 0
+        Node._counter_undefined_flow_rate = 0
         # Standard Node creation
 
         path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "lines.shp")
@@ -204,6 +206,7 @@ class TestNetwork:
     def test_network_hydro(self):
         Node._counter = 0
         Branch._counter = 0
+        Node._counter_undefined_flow_rate = 0
         # Standard Node creation
 
         path_lines = os.path.join(

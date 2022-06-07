@@ -682,9 +682,10 @@ class Network:
             hydraulic_balance_system,
             x0,
             args=(q, self),
+            jac=hydraulic_balance_system_jac,
             method="hybr",
-            tol=1e-7,
-            options={"xtol": 1e-7},
+            tol=1e-10,
+            options={"xtol": 1e-10},
         )
         if not x.success:
             logging.warning(
@@ -1019,7 +1020,7 @@ class Network:
             matrix.append(node._node_pressure_array)
         matrix = np.array(matrix).transpose()
         with open(os.path.join(self.output_path, "NodesPressures.csv"), "w") as nodes:
-            nodes.write(nodes_pressures_header + "\n")
+            nodes.write(nodes_pressures_header[:-1] + "\n")
             np.savetxt(nodes, matrix, delimiter=",", fmt="%.0f")
 
     def save_branches_mass_flow_rates(self):
@@ -1032,7 +1033,7 @@ class Network:
         with open(
             os.path.join(self.output_path, "BranchMassFlowRates.csv"), "w"
         ) as branches:
-            branches.write(branches_pressures_header + "\n")
+            branches.write(branches_pressures_header[:-1] + "\n")
             np.savetxt(branches, matrix, delimiter=",", fmt="%.2f")
 
     def save_nodes_temperatures(self):
@@ -1045,7 +1046,7 @@ class Network:
         with open(
             os.path.join(self.output_path, "NodesTemperatures.csv"), "w"
         ) as nodes:
-            nodes.write(nodes_temperatures_header + "\n")
+            nodes.write(nodes_temperatures_header[:-1] + "\n")
             np.savetxt(nodes, matrix, delimiter=",", fmt="%.2f")
 
     def save_branches_temperatures(self):
@@ -1058,7 +1059,7 @@ class Network:
         with open(
             os.path.join(self.output_path, "BranchTemperatures.csv"), "w"
         ) as branches:
-            branches.write(branches_temperatures_header + "\n")
+            branches.write(branches_temperatures_header[:-1] + "\n")
             np.savetxt(branches, matrix, delimiter=",", fmt="%.2f")
 
     @classmethod

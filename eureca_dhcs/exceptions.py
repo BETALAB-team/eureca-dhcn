@@ -33,5 +33,13 @@ class BoundaryConditionNotProvided(Exception):
     pass
 
 
+class TooManyBoundaryCondition(Exception):
+    pass
+
+
+class TooFewBoundaryCondition(Exception):
+    pass
+
+
 class HydraulicSystemNotSolved(Exception):
     pass
