@@ -26,6 +26,7 @@ class Node:
     _starting_pressure = 10.0  # [Pa]
     _cooling_starting_temperature = 15  # [°C]
     _heating_starting_temperature = 55  # [°C]
+    _first_supply_node_flag = False
 
     def __init__(
         self,
@@ -128,6 +129,11 @@ class Node:
         if value not in ["supply", "disp", "demand"]:
             raise WrongNodeType(f"Node {self._idx}, wrong node type: {value}")
         self.__node_type = value
+        if not Node._first_supply_node_flag and value == 'supply':
+            self._first_supply_node = True
+            Node._first_supply_node_flag = True
+        else:
+            self._first_supply_node = False
 
     @property
     def _node_pressure(self) -> float:

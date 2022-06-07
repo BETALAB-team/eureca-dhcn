@@ -360,9 +360,7 @@ class Network:
             nodes_p = boundaries["Hydraulic"]["Node"]["Pressure [Pa]"]
             nodes_p_dict = nodes_p.to_dict(orient="List")
             # Just to convert in str and np.array
-            nodes_p_dict = {
-                str(k): np.array(node) for k, node in nodes_p_dict.items()
-            }
+            nodes_p_dict = {str(k): np.array(node) for k, node in nodes_p_dict.items()}
         except KeyError:
             nodes_p_dict = {}
         # Branches pump raise pressure
@@ -582,10 +580,13 @@ class Network:
                     #     f"Node {node._idx}: the node is a {node._node_type} node, but no boundary mass flow rate is provided.\nPlease provide a boundary condition"
                     # )
                     node._boundary_mass_flow_rate_undefined = True
-                    logging.warning(f"Node {node._idx}: the node is a {node._node_type} node, but no boundary mass flow rate is provided.\nPlease at least an addition pressure to let the system be solved")
+                    logging.warning(
+                        f"Node {node._idx}: the node is a {node._node_type} node, but no boundary mass flow rate is provided.\nPlease at least an addition pressure to let the system be solved"
+                    )
             else:
                 node._boundary_mass_flow_rate = np.zeros(number_of_timesteps)
-                node._boundary_mass_flow_rate_undefined = False                
+                node._boundary_mass_flow_rate_undefined = False
+        self._nodes_number_undefined_flow_rate = Node._counter_undefined_flow_rate
 
     def load_nodes_pressure_boundary_condition(
         self, boundary_conditions: dict, number_of_timesteps: int
@@ -604,16 +605,16 @@ class Network:
                 .
                 .
                 .
-    
+
         number_of_timesteps: int
             Number of timesteps to be considered
-    
+
         Returns
         -------
         None.
-    
+
         """
-    
+
         for node_k, node in self._nodes_object_dict.items():
             if node_k in boundary_conditions.keys():
                 if len(boundary_conditions[node_k]) < number_of_timesteps:
@@ -623,7 +624,6 @@ class Network:
                 node._boundary_pressure = boundary_conditions[node_k][
                     :number_of_timesteps
                 ]
-    
 
     def load_branches_pump_pressure_raise_boundary_condition(
         self, boundary_conditions: dict, number_of_timesteps: int
@@ -669,7 +669,10 @@ class Network:
         # Boundary condition
         logging.debug(f"Timestep {timestep}")
         q = self._generate_hydraulic_balance_boundary_condition(timestep)
-        if q[0 : self._nodes_number].sum() > 1e-10:
+        if (
+            q[0 : self._nodes_number].sum() > 1e-10
+            and Node._counter_undefined_flow_rate == 0
+        ):
             raise ValueError(
                 f"Timestep {timestep}: input - output mass flow rates not equal. Mass balance cannot be solved"
             )
@@ -762,7 +765,7 @@ class Network:
         for node in self._nodes_object_ordered_list:
             try:
                 if node._boundary_mass_flow_rate_undefined:
-                    q.append(0.)
+                    q.append(0.0)
                 else:
                     q.append(node._boundary_mass_flow_rate[timestep])
             except AttributeError:
@@ -784,7 +787,11 @@ class Network:
                 raise IndexError(
                     f"Branch {branch._idx}: selected timestep {timestep} longer than boundary conditions. "
                 )
-        [q.append(0) for i in range(self._branches_number)]
+        for node in self._nodes_object_ordered_list:
+            try:
+                q.append(node._boundary_pressure[timestep])
+            except AttributeError:
+                q.append(0.0)
         return np.array(q)
 
     def _generate_hydraulic_balance_starting_vector(self, q):
@@ -839,8 +846,16 @@ class Network:
         branches_friction_factors = np.array(
             [Branch._starting_friction_factor] * self._branches_number
         )
+        undefined_mass_flows = np.array(
+            [av_mass_flow] * self._nodes_number_undefined_flow_rate
+        )
         return np.hstack(
-            [branches_mass_flow_rates, nodes_pressures, branches_friction_factors]
+            [
+                branches_mass_flow_rates,
+                nodes_pressures,
+                branches_friction_factors,
+                undefined_mass_flows,
+            ]
         )
 
     def _generate_thermal_balance_boundary_condition(self, timestep, time_interval):
