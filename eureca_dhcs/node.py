@@ -214,6 +214,20 @@ class Node:
         self.__boundary_temperature = value
         
     @property
+    def _boundary_pressure(self) -> np.array:
+        return self.__boundary_pressure
+
+    @_boundary_pressure.setter
+    def _boundary_pressure(self, value: np.array):
+        try:
+            value = np.array(value)
+        except ValueError:
+            raise TypeError(
+                f"Node {self._idx}, _boundary_pressure must be a np.array: {value}"
+            )
+        self.__boundary_pressure = value
+        
+    @property
     def _boundary_mass_flow_rate_undefined(self) -> bool:
         return self.__boundary_mass_flow_rate_undefined
 
