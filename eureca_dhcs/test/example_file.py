@@ -33,37 +33,37 @@ network.load_boundary_conditions_from_excel(boundaries, 30)
 
 #%%
 for iteration in range(30):
-    network.solve_hydraulic_balance(iteration)
-    sol = network.solve_thermal_balance(iteration)
+    x, q, x0 = network.solve_hydraulic_balance(iteration)
+    # sol = network.solve_thermal_balance(iteration)
 network.save_hydraulic_results()
-for branch in network._branches_object_ordered_list:
-    print(f"Branch {branch._idx}")
-    print(f"\text diameter [m]: {branch._pipe_ext_diameter}")
-    print(f"\tint diameter [m]: {branch._pipe_int_diameter}")
-# Risolvere problema roughness!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# # %%
-# for iteration in range(20):
-#     x = network.solve_hydraulic_balance(iteration)
+# for branch in network._branches_object_ordered_list:
+#     print(f"Branch {branch._idx}")
+#     print(f"\text diameter [m]: {branch._pipe_ext_diameter}")
+#     print(f"\tint diameter [m]: {branch._pipe_int_diameter}")
+# # Risolvere problema roughness!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# # # %%
+# # for iteration in range(20):
+# #     x = network.solve_hydraulic_balance(iteration)
 
-out_path = os.path.join("eureca_dhcs", "test", "output_tests")
-import pandas as pd
-import matplotlib.pyplot as plt
+# out_path = os.path.join("eureca_dhcs", "test", "output_tests")
+# import pandas as pd
+# import matplotlib.pyplot as plt
 
-bp1 = pd.read_csv(os.path.join(out_path, "BranchMassFlowRates.csv"))
-# nt1 = pd.read_csv(os.path.join(out_path, "NodesTemperatures.csv"))
-# bt1 = pd.read_csv(os.path.join(out_path, "BranchTemperatures.csv"))
+# bp1 = pd.read_csv(os.path.join(out_path, "BranchMassFlowRates.csv"))
+# # nt1 = pd.read_csv(os.path.join(out_path, "NodesTemperatures.csv"))
+# # bt1 = pd.read_csv(os.path.join(out_path, "BranchTemperatures.csv"))
 
-# bp1 = bp1[[col for col in bp1.columns if col.endswith("33")]]
-# nt1 = nt1[[col for col in nt1.columns if col.endswith("33")]]
-# bt1 = bt1[[col for col in bt1.columns if col.endswith("33")]]
+# # bp1 = bp1[[col for col in bp1.columns if col.endswith("33")]]
+# # nt1 = nt1[[col for col in nt1.columns if col.endswith("33")]]
+# # bt1 = bt1[[col for col in bt1.columns if col.endswith("33")]]
 
-fig, ax4 = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
-ax4.plot(
-    bp1.values,
-    linestyle="-",
-)
+# fig, ax4 = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
+# ax4.plot(
+#     bp1.values,
+#     linestyle="-",
+# )
 
-ax4.set_title("HydroTest")
-ax4.legend(loc="lower right")
-ax4.grid()
-ax4.set_ylabel("Mass flow rate [kg/s]")
+# ax4.set_title("HydroTest")
+# ax4.legend(loc="lower right")
+# ax4.grid()
+# ax4.set_ylabel("Mass flow rate [kg/s]")

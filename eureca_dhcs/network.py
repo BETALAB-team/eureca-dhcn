@@ -682,10 +682,9 @@ class Network:
             hydraulic_balance_system,
             x0,
             args=(q, self),
-            jac=hydraulic_balance_system_jac,
             method="hybr",
-            tol=1e-10,
-            options={"xtol": 1e-10},
+            tol=1e-7,
+            options={"xtol": 1e-7},
         )
         if not x.success:
             logging.warning(
@@ -739,7 +738,7 @@ class Network:
         #     [f"{f:.3f}" for f in x.x[self._nodes_number : -self._branches_number]],
         # )
         self._set_hydraulic_balance_results_vector(x.x)
-        return x.x, q, x0
+        return x0, q, x0
 
     def solve_thermal_balance(self, timestep: int, time_interval: int = 3600):
         # Boundary condition

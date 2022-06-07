@@ -62,6 +62,7 @@ def hydraulic_balance_system(x, q, network):
         if not node._first_supply_node:
             if node._boundary_mass_flow_rate_undefined:
                 # The mass flow rate entering in this node is unknown
+                print(f"NNode {node._idx}")
                 system.append(
                     x[demand_idx].sum()
                     - x[supply_idx].sum()
@@ -73,6 +74,7 @@ def hydraulic_balance_system(x, q, network):
                     + q[node._unique_matrix_idx]
                 )
             else:
+                print(f"NNode {node._idx}")
                 system.append(
                     x[demand_idx].sum()
                     - x[supply_idx].sum()
@@ -80,18 +82,18 @@ def hydraulic_balance_system(x, q, network):
                 )
         # Pressure
         # MUST BE FIXED
-        try:
-            node._boundary_pressure
-            system.append(
-                x[network._branches_number + node._unique_matrix_idx]
-                - q[
-                    network._branches_number
-                    + network._nodes_number
-                    + node._unique_matrix_idx
-                ]
-            )
-        except AttributeError:
-            pass
+        # try:
+        #     node._boundary_pressure
+        #     system.append(
+        #         x[network._branches_number + node._unique_matrix_idx]
+        #         - q[
+        #             network._branches_number
+        #             + network._nodes_number
+        #             + node._unique_matrix_idx
+        #         ]
+        #     )
+        # except AttributeError:
+        #     pass
     for branch in network._branches_object_ordered_list:
         # system.append(
         #     x[branch._demand_node_object._unique_matrix_idx + network._branches_number]
@@ -108,6 +110,7 @@ def hydraulic_balance_system(x, q, network):
         # )
 
         # Darcy–Weissbach equation for each branch
+        print(f"Branch {branch._idx}")
         system.append(
             x[branch._demand_node_object._unique_matrix_idx + network._branches_number]
             - x[
@@ -141,6 +144,7 @@ def hydraulic_balance_system(x, q, network):
             )
         )
         if reinolds > 2300:
+            print(f"Branch {branch._idx}")
             system.append(
                 1
                 / np.sqrt(
@@ -171,6 +175,7 @@ def hydraulic_balance_system(x, q, network):
                 )
             )
         elif reinolds < 640:
+            print(f"Branch {branch._idx}")
             system.append(
                 x[
                     network._branches_number
@@ -180,6 +185,7 @@ def hydraulic_balance_system(x, q, network):
                 - 0.09
             )
         else:
+            print(f"Branch {branch._idx}")
             system.append(
                 x[
                     network._branches_number
@@ -188,7 +194,12 @@ def hydraulic_balance_system(x, q, network):
                 ]
                 - 64 / reinolds
             )
-    system.append(x[(network._branches_number * 2 + network._nodes_number) :].sum())
+    print(f"Pressure eq")
+    system.append(
+        system.append(x[network._branches_number + network._nodes_number - 1])
+    )
+
+    # system.append(x[(network._branches_number * 2 + network._nodes_number) :].sum())
     return system
 
 
@@ -254,18 +265,19 @@ def hydraulic_balance_system_jac(x, q, network):
                     + network._nodes_number
                     + node._unique_matrix_idx_undefined_flow_rate
                 ] = -1
+            print(f"NNode {node._idx}")
             system.append(line_list)
-        try:
-            node._boundary_pressure
-            line_list = np.zeros(
-                network._branches_number * 2
-                + network._nodes_number
-                + network._nodes_number_undefined_flow_rate
-            )
-            line_list[network._branches_number + node._unique_matrix_idx] = 1
-            system.append(line_list)
-        except AttributeError:
-            pass
+        # try:
+        #     node._boundary_pressure
+        #     line_list = np.zeros(
+        #         network._branches_number * 2
+        #         + network._nodes_number
+        #         + network._nodes_number_undefined_flow_rate
+        #     )
+        #     line_list[network._branches_number + node._unique_matrix_idx] = 1
+        #     system.append(line_list)
+        # except AttributeError:
+        #     pass
     for branch in network._branches_object_ordered_list:
         line_list = np.zeros(
             network._branches_number * 2
@@ -317,6 +329,7 @@ def hydraulic_balance_system_jac(x, q, network):
             * branch._pipe_len
             / (np.pi**2 * branch.get_density() * branch._pipe_int_diameter**5)  #  )
         )
+        print(f"Branch {branch._idx}")
 
         system.append(line_list)
 
@@ -425,6 +438,7 @@ def hydraulic_balance_system_jac(x, q, network):
                     )
                 )
             )
+            print(f"Branch {branch._idx}")
             system.append(line_list_colebrook)
         elif reinolds < 640:
 
@@ -433,6 +447,7 @@ def hydraulic_balance_system_jac(x, q, network):
                 + network._nodes_number
                 + branch._unique_matrix_idx
             ] = 1
+            print(f"Branch {branch._idx}")
             system.append(line_list_colebrook)
         else:
             # mass flow derivative
@@ -451,12 +466,18 @@ def hydraulic_balance_system_jac(x, q, network):
                 + branch._unique_matrix_idx
             ] = 1
 
+            print(f"Branch {branch._idx}")
             system.append(line_list_colebrook)
-    line_list = np.zeros(
-        network._branches_number * 2
-        + network._nodes_number
-        + network._nodes_number_undefined_flow_rate
-    )
-    line_list[(network._branches_number * 2 + network._nodes_number) :] = 1
+    # line_list = np.zeros(
+    #     network._branches_number * 2
+    #     + network._nodes_number
+    #     + network._nodes_number_undefined_flow_rate
+    # )
+    # line_list[(network._branches_number * 2 + network._nodes_number) :] = 1
+    # system.append(line_list)
+    line_list = np.zeros(network._branches_number * 2 + network._nodes_number)
+    line_list[network._branches_number + network._nodes_number - 1] = 1
+
+    print(f"Pressure")
     system.append(line_list)
     return system
