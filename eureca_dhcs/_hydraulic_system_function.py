@@ -55,12 +55,13 @@ def hydraulic_balance_system(x, q, network):
     system = []
     # node balances
     # This equation are the mass balance for each node
-    for node in network._nodes_object_ordered_list[1:]:
-        supply_idx = node.get_supply_branches_unique_idx()
-        demand_idx = node.get_demand_branches_unique_idx()
-        system.append(
-            x[demand_idx].sum() - x[supply_idx].sum() + q[node._unique_matrix_idx]
-        )
+    for node in network._nodes_object_ordered_list:
+        if not node._first_supply_node:
+            supply_idx = node.get_supply_branches_unique_idx()
+            demand_idx = node.get_demand_branches_unique_idx()
+            system.append(
+                x[demand_idx].sum() - x[supply_idx].sum() + q[node._unique_matrix_idx]
+            )
     for branch in network._branches_object_ordered_list:
         # system.append(
         #     x[branch._demand_node_object._unique_matrix_idx + network._branches_number]
@@ -207,14 +208,15 @@ def hydraulic_balance_system_jac(x, q, network):
     system = []
     # node balances
     # This equation are the mass balance for each node
-    for node in network._nodes_object_ordered_list[1:]:
-        line_list = np.zeros(network._branches_number * 2 + network._nodes_number)
-        # Derivative of the node mass balance for each mass flow rate
-        supply_idx = node.get_supply_branches_unique_idx()
-        line_list[supply_idx] = -1
-        demand_idx = node.get_demand_branches_unique_idx()
-        line_list[demand_idx] = 1
-        system.append(line_list)
+    for node in network._nodes_object_ordered_list:
+        if not node._first_supply_node:
+            line_list = np.zeros(network._branches_number * 2 + network._nodes_number)
+            # Derivative of the node mass balance for each mass flow rate
+            supply_idx = node.get_supply_branches_unique_idx()
+            line_list[supply_idx] = -1
+            demand_idx = node.get_demand_branches_unique_idx()
+            line_list[demand_idx] = 1
+            system.append(line_list)
     for branch in network._branches_object_ordered_list:
         line_list = np.zeros(network._branches_number * 2 + network._nodes_number)
         # system.append(
