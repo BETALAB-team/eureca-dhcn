@@ -42,7 +42,16 @@ for iteration in range(600):
 network.save_results()
 
 # %% Test 2
+import os
 
+from eureca_dhcs.network import Network
+from eureca_dhcs.soil import Soil
+
+# from ..network import Network
+# from ..soil import Soil
+
+time_int = 300
+n_timestep = int(600)
 path_lines = os.path.join("eureca_dhcs", "test", "input_tests", "test_temp_2_lines.shp")
 path_nodes = os.path.join(
     "eureca_dhcs", "test", "input_tests", "test_temp_2_points.shp"
