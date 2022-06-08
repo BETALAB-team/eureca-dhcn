@@ -1,4 +1,5 @@
 eureca_dhcs/test/out*/
+eureca_dhcs/test/CWN/
 eureca_dhcs/test/ground/
 eureca_dhcs.egg-info/
 output
