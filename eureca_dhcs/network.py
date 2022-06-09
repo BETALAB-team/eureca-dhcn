@@ -10,7 +10,7 @@ import logging
 import numpy as np
 import geopandas as gpd
 import pandas as pd
-from scipy.optimize import minimize, root
+from scipy.optimize import minimize, root, least_squares
 
 from eureca_dhcs.node import Node
 from eureca_dhcs.branch import Branch
@@ -616,10 +616,17 @@ class Network:
             x0,
             args=(q, self),
             jac=hydraulic_balance_system_jac,
-            method="hybr",
+            method="lm",
             tol=1e-10,
             options={"xtol": 1e-10},
         )
+        # x = least_squares(
+        #     hydraulic_balance_system,
+        #     x0,
+        #     args=(q, self),
+        #     jac=hydraulic_balance_system_jac,
+        #     method="lm",
+        # )
         if not x.success:
             logging.warning(
                 f"Timestep {timestep}: hydraulic system solution not improving, success: {x.success}"
@@ -768,7 +775,9 @@ class Network:
         # )
         av_mass_flow = np.abs(q[0 : self._nodes_number]).mean()
         branches_mass_flow_rates = np.array([av_mass_flow] * self._branches_number)
-        nodes_pressures = np.array([Node._starting_pressure] * self._nodes_number)
+        nodes_pressures = (
+            np.array([Node._starting_pressure] * self._nodes_number)
+        )
         branches_friction_factors = np.array(
             [Branch._starting_friction_factor] * self._branches_number
         )

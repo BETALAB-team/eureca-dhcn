@@ -89,8 +89,8 @@ def hydraulic_balance_system(x, q, network):
                 + network._nodes_number
                 + branch._unique_matrix_idx
             ]
-            * np.abs(x[branch._unique_matrix_idx])
-            * x[branch._unique_matrix_idx]
+            * np.sign(x[branch._unique_matrix_idx])
+            * x[branch._unique_matrix_idx] ** 2
             * 8
             * branch._pipe_len
             / (np.pi**2 * branch.get_density() * branch._pipe_int_diameter**5)  #  )
@@ -248,8 +248,7 @@ def hydraulic_balance_system_jac(x, q, network):
                 + network._nodes_number
                 + branch._unique_matrix_idx
             ]
-            * np.sign(x[branch._unique_matrix_idx])
-            * x[branch._unique_matrix_idx]
+            * np.sqrt(x[branch._unique_matrix_idx] ** 2)
             * 8
             * branch._pipe_len
             / (np.pi**2 * branch.get_density() * branch._pipe_int_diameter**5)  #  )
