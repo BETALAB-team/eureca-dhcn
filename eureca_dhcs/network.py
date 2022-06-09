@@ -775,9 +775,7 @@ class Network:
         # )
         av_mass_flow = np.abs(q[0 : self._nodes_number]).mean()
         branches_mass_flow_rates = np.array([av_mass_flow] * self._branches_number)
-        nodes_pressures = (
-            np.array([Node._starting_pressure] * self._nodes_number)
-        )
+        nodes_pressures = np.array([Node._starting_pressure] * self._nodes_number)
         branches_friction_factors = np.array(
             [Branch._starting_friction_factor] * self._branches_number
         )
@@ -988,6 +986,27 @@ class Network:
         ) as branches:
             branches.write(branches_temperatures_header + "\n")
             np.savetxt(branches, matrix, delimiter=",", fmt="%.2f")
+
+    def solve_hydraulic_balance_SIMPLE(self, timestep: int):
+        # Boundary condition
+        logging.debug(f"Timestep {timestep}")
+        """
+        x : np.array
+            array with the first try value [mass_flow_rates, pressures].
+        q : np.array
+            boundary conditions [nodes_mass_flow_rates, branches_pumps_pressure_raise].
+        """
+        q = self._generate_hydraulic_balance_boundary_condition(timestep)[
+            : (self._branches_number + self.nodes_number)
+        ]
+        if q[: self._nodes_number].sum() > 1e-10:
+            raise ValueError(
+                f"Timestep {timestep}: input - output mass flow rates not equal. Mass balance cannot be solved"
+            )
+        # First try vector
+        x0 = self._generate_hydraulic_balance_starting_vector(q)[
+            : (self._branches_number + self.nodes_number)
+        ]
 
     @classmethod
     def from_shapefiles(
