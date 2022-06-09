@@ -8,9 +8,14 @@ import math
 import logging
 
 import numpy as np
+from scipy.optimize import root_scalar
 
 from eureca_dhcs.exceptions import DuplicateBranch, WrongTemperatureMode
 from eureca_dhcs.soil import Soil
+from eureca_dhcs._hydraulic_system_function import (
+    darcy_equation,
+    darcy_equation_der,
+)
 
 
 class Branch:
@@ -486,6 +491,35 @@ class Branch:
             logging.warning(
                 f"Branch {self._idx}, the temperature profile can be unstable. Subdivide the branch or increase the timestep (at least to {self._pipe_len / self._fluid_velocity:.0f} s)"
             )
+
+    def calc_hydraulic_resistance(self, mass_flow_rate):
+        reinolds = np.abs(
+            (
+                4
+                * mass_flow_rate
+                / (np.pi * self.get_dynamic_viscosity() * self._pipe_int_diameter)
+            )
+        )
+        if reinolds > 2300:
+            sol = root_scalar(
+                darcy_equation,
+                x0=0.02,
+                fprime=darcy_equation_der,
+                method="newton",
+                args=(reinolds, self._roughness, self._pipe_int_diameter),
+            )
+            friction_factor = sol.root
+        elif reinolds < 640:
+            friction_factor = 0.09
+        else:
+            friction_factor = 64 / reinolds
+        resistance = (
+            8
+            * friction_factor
+            * self._pipe_len
+            / (self.get_density() * np.pi**2 * self._pipe_int_diameter**5)
+        )
+        return resistance, friction_factor
 
     # def get_ground_temperature(self):
     #     # TODO: put real_t_ground
