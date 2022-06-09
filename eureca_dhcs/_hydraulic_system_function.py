@@ -12,6 +12,18 @@ __maintainer__ = "Enrico Prataviera"
 import numpy as np
 
 
+def darcy_equation(ff, reinolds, roughness, diameter):
+    return 1 / np.sqrt(ff) + 2 * np.log(
+        roughness / (3.7 * diameter) + 2.51 / (reinolds * np.sqrt(ff))
+    )
+
+
+def darcy_equation_der(ff, reinolds, roughness, diameter):
+    return -0.5 * ff ** (-3 / 2) - 2.51 / reinolds * ff ** (-3 / 2) / (
+        roughness / (3.7 * diameter) + 2.51 / (reinolds * np.sqrt(ff))
+    )
+
+
 def hydraulic_balance_system(x, q, network):
     """
     This function builds the hydraulic system for the solution with f solve:
