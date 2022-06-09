@@ -727,7 +727,7 @@ class Network:
         [q.append(0) for i in range(self._branches_number)]
         return np.array(q)
 
-    def _generate_hydraulic_balance_starting_vector(self, q):
+    def _generate_hydraulic_balance_starting_vector(self, q, from_previous=False):
         """
         Generate the starting guess vector from the value of the previous timestep
         stored in the nodes and branches abjects
@@ -753,32 +753,37 @@ class Network:
         #         for branch in self._branches_object_ordered_list
         #     ]
         # )
-        # r = 0
-        # branches_mass_flow_rates = np.array(
-        #     [
-        #         branch._mass_flow_rate + r / 10
-        #         for branch in self._branches_object_ordered_list
-        #     ]
-        # )
-        # nodes_pressures = np.array(
-        #     [node._node_pressure + r * 10 for node in self._nodes_object_ordered_list]
-        # )
+        if from_previous:
+            r = 0
+            branches_mass_flow_rates = np.array(
+                [
+                    branch._mass_flow_rate + r / 10
+                    for branch in self._branches_object_ordered_list
+                ]
+            )
+            nodes_pressures = np.array(
+                [
+                    node._node_pressure + r * 10
+                    for node in self._nodes_object_ordered_list
+                ]
+            )
 
-        # branches_friction_factors = np.array(
-        #     [
-        #         Branch._starting_friction_factor + 0.0001 * r
-        #         for branch in self._branches_object_ordered_list
-        #     ]
-        # )
+            branches_friction_factors = np.array(
+                [
+                    Branch._starting_friction_factor + 0.0001 * r
+                    for branch in self._branches_object_ordered_list
+                ]
+            )
         # a = np.hstack(
         #     [branches_mass_flow_rates, nodes_pressures, branches_friction_factors]
         # )
-        av_mass_flow = np.abs(q[0 : self._nodes_number]).mean()
-        branches_mass_flow_rates = np.array([av_mass_flow] * self._branches_number)
-        nodes_pressures = np.array([Node._starting_pressure] * self._nodes_number)
-        branches_friction_factors = np.array(
-            [Branch._starting_friction_factor] * self._branches_number
-        )
+        else:
+            av_mass_flow = np.abs(q[0 : self._nodes_number]).mean()
+            branches_mass_flow_rates = np.array([av_mass_flow] * self._branches_number)
+            nodes_pressures = np.array([Node._starting_pressure] * self._nodes_number)
+            branches_friction_factors = np.array(
+                [Branch._starting_friction_factor] * self._branches_number
+            )
         return np.hstack(
             [branches_mass_flow_rates, nodes_pressures, branches_friction_factors]
         )
