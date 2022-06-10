@@ -176,6 +176,8 @@ class Network:
                 temperature_mode=temperature_mode,
             )
             self._nodes_object_ordered_list.append(self._nodes_object_dict[node["id"]])
+            if self._nodes_object_dict[node["id"]]._first_supply_node:
+                self._first_supply_node_idx = len(self._nodes_object_ordered_list) - 1
         self._nodes_number = int(len(self._nodes_object_dict.keys()))
 
     def _create_branches(self, temperature_mode):
@@ -338,7 +340,7 @@ class Network:
                 branch._supply_node_object._unique_matrix_idx, column
             ] = -1
             connection_matrix[branch._demand_node_object._unique_matrix_idx, column] = 1
-        self._adjacency_matrix = connection_matrix
+        self._adjacency_matrix = -1 * connection_matrix
 
     def load_boundary_conditions_from_excel(
         self,
@@ -950,8 +952,8 @@ class Network:
             matrix.append(node._node_pressure_array)
         matrix = np.array(matrix).transpose()
         with open(os.path.join(self.output_path, "NodesPressures.csv"), "w") as nodes:
-            nodes.write(nodes_pressures_header + "\n")
-            np.savetxt(nodes, matrix, delimiter=",", fmt="%.0f")
+            nodes.write(nodes_pressures_header[:-1] + "\n")
+            np.savetxt(nodes, matrix, delimiter=",", fmt="%.2f")
 
     def save_branches_mass_flow_rates(self):
         branches_pressures_header = ""
@@ -963,7 +965,7 @@ class Network:
         with open(
             os.path.join(self.output_path, "BranchMassFlowRates.csv"), "w"
         ) as branches:
-            branches.write(branches_pressures_header + "\n")
+            branches.write(branches_pressures_header[:-1] + "\n")
             np.savetxt(branches, matrix, delimiter=",", fmt="%.2f")
 
     def save_nodes_temperatures(self):
@@ -976,7 +978,7 @@ class Network:
         with open(
             os.path.join(self.output_path, "NodesTemperatures.csv"), "w"
         ) as nodes:
-            nodes.write(nodes_temperatures_header + "\n")
+            nodes.write(nodes_temperatures_header[:-1] + "\n")
             np.savetxt(nodes, matrix, delimiter=",", fmt="%.2f")
 
     def save_branches_temperatures(self):
@@ -989,7 +991,7 @@ class Network:
         with open(
             os.path.join(self.output_path, "BranchTemperatures.csv"), "w"
         ) as branches:
-            branches.write(branches_temperatures_header + "\n")
+            branches.write(branches_temperatures_header[:-1] + "\n")
             np.savetxt(branches, matrix, delimiter=",", fmt="%.2f")
 
     def solve_hydraulic_balance_SIMPLE(self, timestep: int):
@@ -1002,16 +1004,81 @@ class Network:
             boundary conditions [nodes_mass_flow_rates, branches_pumps_pressure_raise].
         """
         q = self._generate_hydraulic_balance_boundary_condition(timestep)[
-            : (self._branches_number + self.nodes_number)
+            : (self._branches_number + self._nodes_number)
         ]
         if q[: self._nodes_number].sum() > 1e-10:
             raise ValueError(
                 f"Timestep {timestep}: input - output mass flow rates not equal. Mass balance cannot be solved"
             )
         # First try vector
-        x0 = self._generate_hydraulic_balance_starting_vector(q)[
-            : (self._branches_number + self.nodes_number)
+        x0 = self._generate_hydraulic_balance_starting_vector(q, from_previous=False)[
+            : (self._branches_number + self._nodes_number)
         ]
+        tol_P = 100
+        tol_G = 1
+        G0 = x0[: self._branches_number]
+        P0 = (
+            x0[self._branches_number :]
+            * np.arange(self._nodes_number)
+            / self._nodes_number
+        ) * -1
+        while tol_P > 50 or tol_G > 0.01:
+
+            R = np.array(
+                [
+                    branch.calc_hydraulic_resistance(G0[i])[0] * np.abs(G0[i])
+                    for i, branch in enumerate(self._branches_object_ordered_list)
+                ]
+            )
+            Y = np.diag(1 / R)
+            h = q[self._nodes_number :]
+            P_star = P0
+            G_star = Y @ self._adjacency_matrix.transpose() @ P_star + Y @ h
+            # new calculation of Y
+            _R = np.array(
+                [
+                    branch.calc_hydraulic_resistance(G_star[i])[0] * G_star[i]
+                    for i, branch in enumerate(self._branches_object_ordered_list)
+                ]
+            )
+            Y_star = np.diag(1 / np.abs(_R))
+
+            # A * delta_G_corr = - A * G_star - G_ext
+            G_ext = q[: self._nodes_number]
+            aux_A = np.delete(self._adjacency_matrix, self._first_supply_node_idx, 0)
+            aux_q = np.delete(
+                (-self._adjacency_matrix @ G_star - G_ext), self._first_supply_node_idx
+            )
+            delta_G_corr = np.linalg.solve(aux_A, aux_q)
+            # Add a pressure
+            aux_A = np.insert(
+                Y_star @ self._adjacency_matrix.transpose(),
+                self._first_supply_node_idx,
+                0,
+                axis=0,
+            )
+            aux_A[self._first_supply_node_idx, self._first_supply_node_idx] = 1
+            aux_q = np.insert(delta_G_corr, self._first_supply_node_idx, 0)
+            delta_P_corr = np.linalg.solve(aux_A, aux_q)
+            rf = 0.01
+            P = P_star + delta_P_corr * 0.0001
+            G = G_star + delta_G_corr * 1
+            tol_P = np.linalg.norm(P0 - P)
+            tol_G = np.linalg.norm(G0 - G)
+
+            P0 = P
+            G0 = G
+        ff = np.array(
+            [
+                branch.calc_hydraulic_resistance(G0[i])[1]
+                for i, branch in enumerate(self._branches_object_ordered_list)
+            ]
+        )
+
+        # TODO Calc nodes pressures
+
+        x = np.hstack([G0, P0, ff])
+        self._set_hydraulic_balance_results_vector(x)
 
     @classmethod
     def from_shapefiles(

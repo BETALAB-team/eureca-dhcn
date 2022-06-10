@@ -500,6 +500,7 @@ class Branch:
                 / (np.pi * self.get_dynamic_viscosity() * self._pipe_int_diameter)
             )
         )
+
         if reinolds > 2300:
             sol = root_scalar(
                 darcy_equation,
@@ -508,6 +509,8 @@ class Branch:
                 method="newton",
                 args=(reinolds, self._roughness, self._pipe_int_diameter),
             )
+            if not sol.converged:
+                logging.warning(f"Branch {self._idx}: friction factor not converged")
             friction_factor = sol.root
         elif reinolds < 640:
             friction_factor = 0.09

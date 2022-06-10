@@ -13,14 +13,22 @@ import numpy as np
 
 
 def darcy_equation(ff, reinolds, roughness, diameter):
-    return 1 / np.sqrt(ff) + 2 * np.log(
+    return 1 / np.sqrt(ff) + 2 * np.log10(
         roughness / (3.7 * diameter) + 2.51 / (reinolds * np.sqrt(ff))
     )
 
 
 def darcy_equation_der(ff, reinolds, roughness, diameter):
-    return -0.5 * ff ** (-3 / 2) - 2.51 / reinolds * ff ** (-3 / 2) / (
-        roughness / (3.7 * diameter) + 2.51 / (reinolds * np.sqrt(ff))
+    # https://www.chegg.com/homework-help/questions-and-answers/2-colebrook-equation-friction-factor-turbulent-pipe-flow-given-2log-e-d-251-f-air-flow-tub-q26706228
+    return (
+        -0.5
+        * ff ** (-3 / 2)
+        * (
+            1
+            + 2.18261
+            / reinolds
+            / (roughness / (3.7 * diameter) + 2.51 / (reinolds * np.sqrt(ff)))
+        )
     )
 
 

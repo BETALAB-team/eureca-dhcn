@@ -33,9 +33,9 @@ network.load_boundary_conditions_from_excel(boundaries, 30)
 
 #%%
 for iteration in range(30):
-    network.solve_hydraulic_balance(iteration)
-    sol = network.solve_thermal_balance(iteration)
-network.save_hydraulic_results()
+    network.solve_hydraulic_balance_SIMPLE(iteration)
+    # sol = network.solve_thermal_balance(iteration)
+network.save_results()
 for branch in network._branches_object_ordered_list:
     print(f"Branch {branch._idx}")
     print(f"\text diameter [m]: {branch._pipe_ext_diameter}")
@@ -58,8 +58,8 @@ bp1 = pd.read_csv(os.path.join(out_path, "BranchMassFlowRates.csv"))
 # bt1 = bt1[[col for col in bt1.columns if col.endswith("33")]]
 
 fig, ax4 = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
-ax4.plot(
-    bp1.values,
+bp1.plot(
+    ax=ax4,
     linestyle="-",
 )
 

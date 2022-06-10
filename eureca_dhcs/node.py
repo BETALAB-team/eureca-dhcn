@@ -22,7 +22,7 @@ class Node:
     # Starting pressure for hydraulic balance.
     # This is used just for the first timestep,
     # then pressure of the previous timestep is used
-    _starting_pressure = 10.0  # [Pa]
+    _starting_pressure = 1000000.0  # [Pa]
     _cooling_starting_temperature = 15  # [°C]
     _heating_starting_temperature = 55  # [°C]
     _first_supply_node_flag = False
@@ -128,7 +128,7 @@ class Node:
         if value not in ["supply", "disp", "demand"]:
             raise WrongNodeType(f"Node {self._idx}, wrong node type: {value}")
         self.__node_type = value
-        if not Node._first_supply_node_flag and value == 'supply':
+        if not Node._first_supply_node_flag and value == "supply":
             self._first_supply_node = True
             Node._first_supply_node_flag = True
         else:
