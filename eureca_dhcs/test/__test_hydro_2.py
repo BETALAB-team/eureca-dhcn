@@ -33,9 +33,15 @@ network = Network.from_shapefiles(
 network.load_boundary_conditions_from_excel(boundaries, 135)
 
 # %%
+import time
+
+start = time.time()
 for iteration in range(135):
-    network.solve_hydraulic_balance(iteration)
-    network.solve_thermal_balance(iteration, time_interval=60)
+    print(iteration)
+    network.solve_hydraulic_balance_SIMPLE(iteration)
+    # network.solve_hydraulic_balance(iteration)
+    # network.solve_thermal_balance(iteration, time_interval=60)
+print(f"Sim time: {(time.time() - start):.1f} s")
 network.save_results()
 print("Branch 2: ")
 print("\tExercise: 40.2")

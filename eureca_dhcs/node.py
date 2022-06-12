@@ -22,7 +22,7 @@ class Node:
     # Starting pressure for hydraulic balance.
     # This is used just for the first timestep,
     # then pressure of the previous timestep is used
-    _starting_pressure = 1000000.0  # [Pa]
+    _starting_pressure = 100000.0  # [Pa]
     _cooling_starting_temperature = 15  # [°C]
     _heating_starting_temperature = 55  # [°C]
     _first_supply_node_flag = False

@@ -1011,73 +1011,225 @@ class Network:
                 f"Timestep {timestep}: input - output mass flow rates not equal. Mass balance cannot be solved"
             )
         # First try vector
-        x0 = self._generate_hydraulic_balance_starting_vector(q, from_previous=False)[
+        x0 = self._generate_hydraulic_balance_starting_vector(q, from_previous=True)[
             : (self._branches_number + self._nodes_number)
         ]
+        h = q[self._nodes_number :]
+        G_ext = q[: self._nodes_number]
         tol_P = 100
         tol_G = 1
         G0 = x0[: self._branches_number]
-        P0 = (
-            x0[self._branches_number :]
-            * np.arange(self._nodes_number)
-            / self._nodes_number
-        ) * -1
+        P0 = x0[self._branches_number :]
+        # Little changes to avoid zero divisions in the solution
+        G0 = G0 + np.linspace(-1, 1, len(G0)) * 2.0
+        P0 = P0 + np.linspace(-1, 1, len(P0)) * 5000.0
         while tol_P > 50 or tol_G > 0.01:
+            if np.linalg.norm(G0) > 1e-5:
+                R = np.array(
+                    [
+                        branch.calc_hydraulic_resistance(G0[i])[0] * np.abs(G0[i])
+                        if G0[i] > 1e-6
+                        else 1e-6
+                        for i, branch in enumerate(self._branches_object_ordered_list)
+                    ]
+                )
+                Y = np.diag(1 / np.abs(R))
+                P_star = P0
+                if tol_G > 0.01:
+                    G_star = Y @ self._adjacency_matrix.transpose() @ P_star + Y @ h
+                    # new calculation of Y
+                    _R = np.array(
+                        [
+                            branch.calc_hydraulic_resistance(G_star[i])[0]
+                            * np.abs(G_star[i])
+                            if G_star[i] > 1e-6
+                            else 1e-6
+                            for i, branch in enumerate(
+                                self._branches_object_ordered_list
+                            )
+                        ]
+                    )
+                    Y_star = np.diag(1 / np.abs(_R))
+                else:
+                    G_star = G0
+                    Y_star = Y
+                # A * delta_G_corr = - A * G_star - G_ext
+                # aux_A = np.delete(self._adjacency_matrix, self._first_supply_node_idx, 0)
+                # aux_q = np.delete(
+                #     (-self._adjacency_matrix @ G_star - G_ext), self._first_supply_node_idx
+                # )
+                # # Ring case
+                # # rings = len(aux_A[0, :]) - len(aux_A[:, 0])
+                # # if rings > 0:
+                # #     _ = np.hstack(
+                # #         [np.eye(rings), np.zeros([rings, self._branches_number - rings])]
+                # #     )
+                # #     aux_A = np.vstack([aux_A, _])
+                # #     aux_q = np.hstack([aux_q, np.ones(rings)])
+                # delta_G_corr = np.linalg.solve(aux_A, aux_q)
+                # # # Add a pressure
+                # aux_A = np.insert(
+                #     Y_star @ self._adjacency_matrix.transpose(),
+                #     self._first_supply_node_idx,
+                #     0,
+                #     axis=0,
+                # )
+                # aux_A[self._first_supply_node_idx, self._first_supply_node_idx] = 1
+                # aux_q = np.insert(delta_G_corr, self._first_supply_node_idx, 0)
+                # delta_P_corr = np.linalg.solve(aux_A, aux_q)
+                # rf = 0.01
+                # P = P_star + delta_P_corr * 0.0001
+                aux_A_Q = self._adjacency_matrix
+                aux_q_Q = -self._adjacency_matrix @ G_star - G_ext
 
-            R = np.array(
-                [
-                    branch.calc_hydraulic_resistance(G0[i])[0] * np.abs(G0[i])
-                    for i, branch in enumerate(self._branches_object_ordered_list)
-                ]
-            )
-            Y = np.diag(1 / R)
-            h = q[self._nodes_number :]
-            P_star = P0
-            G_star = Y @ self._adjacency_matrix.transpose() @ P_star + Y @ h
-            # new calculation of Y
-            _R = np.array(
-                [
-                    branch.calc_hydraulic_resistance(G_star[i])[0] * G_star[i]
-                    for i, branch in enumerate(self._branches_object_ordered_list)
-                ]
-            )
-            Y_star = np.diag(1 / np.abs(_R))
+                aux_A_P = -(Y_star @ self._adjacency_matrix.transpose())
+                aux_q_P = np.zeros(self._branches_number)
 
-            # A * delta_G_corr = - A * G_star - G_ext
-            G_ext = q[: self._nodes_number]
-            aux_A = np.delete(self._adjacency_matrix, self._first_supply_node_idx, 0)
-            aux_q = np.delete(
-                (-self._adjacency_matrix @ G_star - G_ext), self._first_supply_node_idx
-            )
-            delta_G_corr = np.linalg.solve(aux_A, aux_q)
-            # Add a pressure
-            aux_A = np.insert(
-                Y_star @ self._adjacency_matrix.transpose(),
-                self._first_supply_node_idx,
-                0,
-                axis=0,
-            )
-            aux_A[self._first_supply_node_idx, self._first_supply_node_idx] = 1
-            aux_q = np.insert(delta_G_corr, self._first_supply_node_idx, 0)
-            delta_P_corr = np.linalg.solve(aux_A, aux_q)
-            rf = 0.01
-            P = P_star + delta_P_corr * 0.0001
-            G = G_star + delta_G_corr * 1
-            tol_P = np.linalg.norm(P0 - P)
-            tol_G = np.linalg.norm(G0 - G)
+                aux_A = np.vstack(
+                    [
+                        np.hstack(
+                            [
+                                aux_A_Q,
+                                np.zeros([self._nodes_number, self._nodes_number]),
+                            ]
+                        ),
+                        np.hstack([np.eye(self._branches_number), aux_A_P]),
+                    ]
+                )
+                aux_q = np.hstack([aux_q_Q, aux_q_P])
 
-            P0 = P
-            G0 = G
+                aux_A_ = np.delete(aux_A, self._first_supply_node_idx, 0)
+                aux_q_ = np.delete(aux_q, self._first_supply_node_idx)
+                aux_A_ = np.vstack(
+                    [aux_A_, np.zeros(self._branches_number + self._nodes_number)]
+                )
+                aux_q_ = np.hstack([aux_q_, 0])
+                aux_A_[-1, self._branches_number + self._first_supply_node_idx] = 1
+
+                delta = np.linalg.solve(aux_A_, aux_q_)
+
+                delta_G_corr = delta[: self._branches_number]
+                delta_P_corr = delta[self._branches_number :]
+
+                G = G_star + delta_G_corr
+                P = P_star + delta_P_corr
+
+                __R = np.array(
+                    [
+                        branch.calc_hydraulic_resistance(G[i])[0] * np.abs(G[i])
+                        if G[i] > 1e-6
+                        else 1e-6
+                        for i, branch in enumerate(self._branches_object_ordered_list)
+                    ]
+                )
+                R = np.diag(np.abs(__R))
+
+                aux_A = np.vstack(
+                    [
+                        np.hstack(
+                            [
+                                self._adjacency_matrix,
+                                np.zeros([self._nodes_number, self._nodes_number]),
+                            ]
+                        ),
+                        np.hstack([-R, self._adjacency_matrix.transpose()]),
+                    ]
+                )
+                aux_q = np.hstack([-G_ext, -h])
+
+                aux_A_ = np.delete(aux_A, self._first_supply_node_idx, 0)
+                aux_q_ = np.delete(aux_q, self._first_supply_node_idx)
+                aux_A_ = np.vstack(
+                    [aux_A_, np.zeros(self._branches_number + self._nodes_number)]
+                )
+                aux_q_ = np.hstack([aux_q_, 0])
+                aux_A_[-1, self._branches_number + self._first_supply_node_idx] = 1
+
+                GP = np.linalg.solve(aux_A_, aux_q_)
+
+                G = GP[: self._branches_number]
+                P = GP[self._branches_number :]
+
+                # # aux_A = np.insert(
+                # #     self._adjacency_matrix.transpose(),
+                # #     self._first_supply_node_idx,
+                # #     0,
+                # #     axis=0,
+                # # )
+                # # aux_A[self._first_supply_node_idx, self._first_supply_node_idx] = 1
+                # # aux_q = np.insert(
+                # #     np.dot(np.diag(__R), G) - h, self._first_supply_node_idx, 0
+                # # )
+                # # P = np.linalg.solve(aux_A, aux_q)
+
+                tol_P = np.linalg.norm(P0 - P)
+                tol_G = np.linalg.norm(G0 - G)
+
+                P0 = P
+                G0 = G
+            else:
+                P0 = P0 * 0  # And the pumps?
+                G0 = G0 * 0
+                tol_P = 0.0001
+                tol_G = 0.0001
+        __R = np.array(
+            [
+                branch.calc_hydraulic_resistance(G0[i])[0] * np.abs(G0[i])
+                if G0[i] > 1e-6
+                else 1e-6
+                for i, branch in enumerate(self._branches_object_ordered_list)
+            ]
+        )
+        R = np.diag(np.abs(__R))
+
+        aux_A = np.vstack(
+            [
+                np.hstack(
+                    [
+                        self._adjacency_matrix,
+                        np.zeros([self._nodes_number, self._nodes_number]),
+                    ]
+                ),
+                np.hstack([-R, self._adjacency_matrix.transpose()]),
+            ]
+        )
+        aux_q = np.hstack([-G_ext, -h])
+
+        aux_A_ = np.delete(aux_A, self._first_supply_node_idx, 0)
+        aux_q_ = np.delete(aux_q, self._first_supply_node_idx)
+        aux_A_ = np.vstack(
+            [aux_A_, np.zeros(self._branches_number + self._nodes_number)]
+        )
+        aux_q_ = np.hstack([aux_q_, 0])
+        aux_A_[-1, self._branches_number + self._first_supply_node_idx] = 1
+
+        try:
+            GP = np.linalg.solve(aux_A_, aux_q_)
+        except np.linalg.LinAlgError:
+            GP = np.hstack([G0, P0])
+            logging.error(f"Timestep {timestep}: singular matrix.")
+        G = GP[: self._branches_number]
+        P = GP[self._branches_number :]
+
+        # aux_A = np.insert(
+        #     self._adjacency_matrix.transpose(),
+        #     self._first_supply_node_idx,
+        #     0,
+        #     axis=0,
+        # )
+        # aux_A[self._first_supply_node_idx, self._first_supply_node_idx] = 1
+        # aux_q = np.insert(
+        #     np.dot(np.diag(__R), G) - h, self._first_supply_node_idx, 0
+        # )
+        # P = np.linalg.solve(aux_A, aux_q)
         ff = np.array(
             [
-                branch.calc_hydraulic_resistance(G0[i])[1]
+                branch.calc_hydraulic_resistance(G[i])[1]
                 for i, branch in enumerate(self._branches_object_ordered_list)
             ]
         )
 
-        # TODO Calc nodes pressures
-
-        x = np.hstack([G0, P0, ff])
+        x = np.hstack([G, P, ff])
         self._set_hydraulic_balance_results_vector(x)
 
     @classmethod

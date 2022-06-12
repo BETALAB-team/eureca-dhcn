@@ -42,8 +42,9 @@ else:
 # %%
 start = time.time()
 for iteration in range(8760):
-    xh, qh, x0h = network.solve_hydraulic_balance(iteration)
-
+    print(iteration)
+    # xh, qh, x0h = network.solve_hydraulic_balance(iteration)
+    network.solve_hydraulic_balance_SIMPLE(iteration)
     xt, At, qt = network.solve_thermal_balance(iteration)
     # print(f"##### timestep {iteration} ######")
     # for b_k, b in network._branches_object_dict.items():

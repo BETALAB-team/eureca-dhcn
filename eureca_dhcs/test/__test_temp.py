@@ -37,7 +37,7 @@ network = Network.from_shapefiles(
 network.load_boundary_conditions_from_excel(boundaries, 600)
 
 for iteration in range(600):
-    network.solve_hydraulic_balance(iteration)
+    network.solve_hydraulic_balance_SIMPLE(iteration)
     network.solve_thermal_balance(iteration, time_interval=time_int)
 network.save_results()
 
