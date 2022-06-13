@@ -1044,7 +1044,7 @@ class Network:
                 R = np.array(
                     [
                         branch.calc_hydraulic_resistance(G0[i])[0] * np.abs(G0[i])
-                        if G0[i] > 1e-6
+                        if np.abs(G0[i]) > 1e-6
                         else 1e-6
                         for i, branch in enumerate(self._branches_object_ordered_list)
                     ]
@@ -1059,7 +1059,7 @@ class Network:
                         [
                             branch.calc_hydraulic_resistance(G_star[i])[0]
                             * np.abs(G_star[i])
-                            if G_star[i] > 1e-6
+                            if np.abs(G_star[i]) > 1e-6
                             else 1e-6
                             for i, branch in enumerate(
                                 self._branches_object_ordered_list
@@ -1114,7 +1114,7 @@ class Network:
                 __R = np.array(
                     [
                         branch.calc_hydraulic_resistance(G[i])[0] * np.abs(G[i])
-                        if G[i] > 1e-6
+                        if np.abs(G[i]) > 1e-6
                         else 1e-6
                         for i, branch in enumerate(self._branches_object_ordered_list)
                     ]
@@ -1174,7 +1174,7 @@ class Network:
         __R = np.array(
             [
                 branch.calc_hydraulic_resistance(G0[i])[0] * np.abs(G0[i])
-                if G0[i] > 1e-6
+                if np.abs(G0[i]) > 1e-6
                 else 1e-6
                 for i, branch in enumerate(self._branches_object_ordered_list)
             ]
