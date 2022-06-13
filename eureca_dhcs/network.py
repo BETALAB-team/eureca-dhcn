@@ -1028,7 +1028,16 @@ class Network:
         # Little changes to avoid zero divisions in the solution
         G0 = G0 + np.linspace(-1, 1, len(G0)) * 2.0
         P0 = P0 + np.linspace(-1, 1, len(P0)) * 5000.0
+        n_iter = 0
         while tol_P > 50 or tol_G > 0.01:
+            n_iter += 1
+            if n_iter > 1000:
+                logging.error(
+                    f"Timestep {timestep}: maximum number of iteration for the solution of the hydraulic system reached"
+                )
+                raise ValueError(
+                    f"Timestep {timestep}: maximum number of iteration for the solution of the hydraulic system reached"
+                )
             # Iterative scheme
             if np.linalg.norm(G0) > 1e-5:
                 # The case of non-null mass flow rates
