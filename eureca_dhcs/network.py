@@ -995,6 +995,8 @@ class Network:
             np.savetxt(branches, matrix, delimiter=",", fmt="%.2f")
 
     def solve_hydraulic_balance_SIMPLE(self, timestep: int):
+        # https://www.sciencedirect.com/science/article/pii/S0306261920309235
+        # Section 2.1
         # Boundary condition
         logging.debug(f"Timestep {timestep}")
         """
@@ -1014,8 +1016,11 @@ class Network:
         x0 = self._generate_hydraulic_balance_starting_vector(q, from_previous=True)[
             : (self._branches_number + self._nodes_number)
         ]
+        # Boundary conditions
+        # h: pressures, G_ext: massflow rates
         h = q[self._nodes_number :]
         G_ext = q[: self._nodes_number]
+        # Tollerances and first try vectors
         tol_P = 100
         tol_G = 1
         G0 = x0[: self._branches_number]
@@ -1024,7 +1029,9 @@ class Network:
         G0 = G0 + np.linspace(-1, 1, len(G0)) * 2.0
         P0 = P0 + np.linspace(-1, 1, len(P0)) * 5000.0
         while tol_P > 50 or tol_G > 0.01:
+            # Iterative scheme
             if np.linalg.norm(G0) > 1e-5:
+                # The case of non-null mass flow rates
                 R = np.array(
                     [
                         branch.calc_hydraulic_resistance(G0[i])[0] * np.abs(G0[i])
@@ -1036,6 +1043,7 @@ class Network:
                 Y = np.diag(1 / np.abs(R))
                 P_star = P0
                 if tol_G > 0.01:
+                    # Case where G is changed
                     G_star = Y @ self._adjacency_matrix.transpose() @ P_star + Y @ h
                     # new calculation of Y
                     _R = np.array(
@@ -1051,34 +1059,12 @@ class Network:
                     )
                     Y_star = np.diag(1 / np.abs(_R))
                 else:
+                    # Otherwise it keeps the old G
                     G_star = G0
                     Y_star = Y
-                # A * delta_G_corr = - A * G_star - G_ext
-                # aux_A = np.delete(self._adjacency_matrix, self._first_supply_node_idx, 0)
-                # aux_q = np.delete(
-                #     (-self._adjacency_matrix @ G_star - G_ext), self._first_supply_node_idx
-                # )
-                # # Ring case
-                # # rings = len(aux_A[0, :]) - len(aux_A[:, 0])
-                # # if rings > 0:
-                # #     _ = np.hstack(
-                # #         [np.eye(rings), np.zeros([rings, self._branches_number - rings])]
-                # #     )
-                # #     aux_A = np.vstack([aux_A, _])
-                # #     aux_q = np.hstack([aux_q, np.ones(rings)])
-                # delta_G_corr = np.linalg.solve(aux_A, aux_q)
-                # # # Add a pressure
-                # aux_A = np.insert(
-                #     Y_star @ self._adjacency_matrix.transpose(),
-                #     self._first_supply_node_idx,
-                #     0,
-                #     axis=0,
-                # )
-                # aux_A[self._first_supply_node_idx, self._first_supply_node_idx] = 1
-                # aux_q = np.insert(delta_G_corr, self._first_supply_node_idx, 0)
-                # delta_P_corr = np.linalg.solve(aux_A, aux_q)
-                # rf = 0.01
-                # P = P_star + delta_P_corr * 0.0001
+                ##########################################################
+                # Delta calculation creating the equation 11-12 combined #
+                ##########################################################
                 aux_A_Q = self._adjacency_matrix
                 aux_q_Q = -self._adjacency_matrix @ G_star - G_ext
 
@@ -1097,7 +1083,7 @@ class Network:
                     ]
                 )
                 aux_q = np.hstack([aux_q_Q, aux_q_P])
-
+                # One of the nodes mass balances is deleted and a node's pressure is set
                 aux_A_ = np.delete(aux_A, self._first_supply_node_idx, 0)
                 aux_q_ = np.delete(aux_q, self._first_supply_node_idx)
                 aux_A_ = np.vstack(
@@ -1105,15 +1091,17 @@ class Network:
                 )
                 aux_q_ = np.hstack([aux_q_, 0])
                 aux_A_[-1, self._branches_number + self._first_supply_node_idx] = 1
-
+                # Solution of the system for the deltas
                 delta = np.linalg.solve(aux_A_, aux_q_)
 
                 delta_G_corr = delta[: self._branches_number]
                 delta_P_corr = delta[self._branches_number :]
-
+                # Correction of the G and P vectors
                 G = G_star + delta_G_corr
                 P = P_star + delta_P_corr
-
+                # Only the G vector is kept
+                # On the contrary the P vector is calculated again based on the new G vector and the system
+                # The system is create using Gand the new resistance
                 __R = np.array(
                     [
                         branch.calc_hydraulic_resistance(G[i])[0] * np.abs(G[i])
@@ -1136,7 +1124,7 @@ class Network:
                     ]
                 )
                 aux_q = np.hstack([-G_ext, -h])
-
+                # One of the nodes mass balances is deleted and a node's pressure is set
                 aux_A_ = np.delete(aux_A, self._first_supply_node_idx, 0)
                 aux_q_ = np.delete(aux_q, self._first_supply_node_idx)
                 aux_A_ = np.vstack(
@@ -1168,10 +1156,12 @@ class Network:
                 P0 = P
                 G0 = G
             else:
+                # This is the case where the mass flow rates are zeros
                 P0 = P0 * 0  # And the pumps?
                 G0 = G0 * 0
                 tol_P = 0.0001
                 tol_G = 0.0001
+        # In case there are some over pressures the system is solved again
         __R = np.array(
             [
                 branch.calc_hydraulic_resistance(G0[i])[0] * np.abs(G0[i])
@@ -1210,7 +1200,6 @@ class Network:
             logging.error(f"Timestep {timestep}: singular matrix.")
         G = GP[: self._branches_number]
         P = GP[self._branches_number :]
-
         # aux_A = np.insert(
         #     self._adjacency_matrix.transpose(),
         #     self._first_supply_node_idx,
