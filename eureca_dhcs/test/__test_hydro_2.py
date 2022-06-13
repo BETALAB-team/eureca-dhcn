@@ -36,7 +36,7 @@ network.load_boundary_conditions_from_excel(boundaries, 135)
 import time
 
 start = time.time()
-for iteration in range(24, 135):
+for iteration in range(0, 135):
     print(iteration)
     network.solve_hydraulic_balance_SIMPLE(iteration)
     # network.solve_hydraulic_balance(iteration)
