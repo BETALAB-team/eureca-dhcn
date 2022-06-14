@@ -40,7 +40,7 @@ for iteration in range(0, 135):
     print(iteration)
     network.solve_hydraulic_balance_SIMPLE(iteration)
     # network.solve_hydraulic_balance(iteration)
-    # network.solve_thermal_balance(iteration, time_interval=60)
+    network.solve_thermal_balance(iteration, time_interval=3600)
 print(f"Sim time: {(time.time() - start):.1f} s")
 network.save_results()
 print("Branch 2: ")

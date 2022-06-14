@@ -35,7 +35,7 @@ network.load_boundary_conditions_from_excel(boundaries, 30)
 for iteration in range(30):
     print(iteration)
     network.solve_hydraulic_balance_SIMPLE(iteration)
-    # sol = network.solve_thermal_balance(iteration)
+    sol = network.solve_thermal_balance(iteration)
 network.save_results()
 for branch in network._branches_object_ordered_list:
     print(f"Branch {branch._idx}")

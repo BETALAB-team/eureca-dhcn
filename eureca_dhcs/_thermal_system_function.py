@@ -11,6 +11,8 @@ __version__ = "0.1"
 __maintainer__ = "Enrico Prataviera"
 
 import numpy as np
+from scipy.optimize import lsq_linear
+import logging
 
 
 def thermal_balance_system_optimization(x, q, network, time_interval):
@@ -90,7 +92,7 @@ def thermal_balance_system_optimization(x, q, network, time_interval):
     return system
 
 
-def thermal_balance_system_inverse(network, q, time_interval):
+def thermal_balance_system_inverse(network, q, time_interval, timestep):
     """
     This function solve the linear system Ax=q for the thermal balance:
 
@@ -162,7 +164,11 @@ def thermal_balance_system_inverse(network, q, time_interval):
             AT[node._unique_matrix_idx, node._unique_matrix_idx] = (
                 -1 * total_entering_flow_rate
             )
+    mass_flow_rates = []
+    mass_flow_rates_AT_0 = []
+    mass_flow_rates_q_0 = []
     for branch in network._branches_object_ordered_list:
+        mass_flow_rates.append(branch._mass_flow_rate)
         line = network._nodes_number + branch._unique_matrix_idx
         G = branch._mass_flow_rate * branch.get_specific_heat()
         C = branch.get_dynamic_capacity()
@@ -183,18 +189,42 @@ def thermal_balance_system_inverse(network, q, time_interval):
         # AT[line + network._branches_number, supply_node._unique_matrix_idx] = 1
         # AT[line + network._branches_number, line + network._branches_number] = 1
         # AT[line + network._branches_number, line] = -2
-    x = np.linalg.solve(AT, q)
-    # Calc T average branch
-    t_branch = np.zeros(network._branches_number)
-    for branch in network._branches_object_ordered_list:
-        if branch._mass_flow_rate < 0:
-            supply_node = branch._demand_node_object
-        else:
-            supply_node = branch._supply_node_object
-        t_branch[branch._unique_matrix_idx] = (
-            x[supply_node._unique_matrix_idx]
-            + x[network._nodes_number + branch._unique_matrix_idx]
-        ) / 2
+        mass_flow_rates_AT_0.append(C / time_interval + f_loss)
+        day = network.timestep_array[timestep].dayofyear
+        t_ground = network._soil_obj.get_soil_temperature(day, branch._pipe_depth)
+        mass_flow_rates_q_0.append(
+            +f_loss * t_ground + C * branch._branch_temperature / time_interval
+        )
+        logging.debug(f"T ground branch {branch._idx}: {t_ground} °C")
+    mass_flow_rates = np.array(mass_flow_rates)
+    if np.linalg.norm(mass_flow_rates) > 1e-4:
+        try:
+            x = np.linalg.solve(AT, q)
+            raise np.linalg.LinAlgError
+        except np.linalg.LinAlgError:
+            logging.warning(f"Thermal system not solved, trying with iterative method")
+            res = lsq_linear(AT, q)
+            x = res.x
+            logging.warning(f"Iterative method provide a {res.cost} residual")
+            if not res.success:
+                logging.error(f"Iterative method didn't succed")
+        # Calc T average branch
+        t_branch = np.zeros(network._branches_number)
+        for branch in network._branches_object_ordered_list:
+            if branch._mass_flow_rate < 0:
+                supply_node = branch._demand_node_object
+            else:
+                supply_node = branch._supply_node_object
+            t_branch[branch._unique_matrix_idx] = (
+                x[supply_node._unique_matrix_idx]
+                + x[network._nodes_number + branch._unique_matrix_idx]
+            ) / 2
+    else:
+        # Low mass flow rates case
+        x = np.array([np.nan] * (network._nodes_number + network._nodes_number))
+        t_branch = np.linalg.solve(
+            np.diag(np.array(mass_flow_rates_AT_0)), np.array(mass_flow_rates_q_0)
+        )
     solution = np.hstack(
         [x[: network._nodes_number], t_branch, x[network._nodes_number :]]
     )

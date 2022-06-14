@@ -331,8 +331,8 @@ class Branch:
             raise TypeError(
                 f"Branch {self._idx}, mass_flow_rate must be a float: {value}"
             )
-        if np.abs(value) < 1e-3:
-            value = 1e-3
+        if np.abs(value) < 1e-6:
+            value = 1e-6
             logging.warning(
                 f"Branch {self._idx}, mass_flow_rate very small: {value}. Unstable system. Substituted to 0.00001 kg/s"
             )
@@ -489,7 +489,7 @@ class Branch:
             and self._mass_flow_rate > 5e-5
         ):
             logging.warning(
-                f"Branch {self._idx}, the temperature profile can be unstable. Subdivide the branch or increase the timestep (at least to {self._pipe_len / self._fluid_velocity:.0f} s)"
+                f"Branch {self._idx}, the temperature profile can be unstable (mass flow rate: {self._mass_flow_rate} kg/s). Subdivide the branch or increase the timestep (at least to {self._pipe_len / self._fluid_velocity:.0f} s)"
             )
 
     def calc_hydraulic_resistance(self, mass_flow_rate):

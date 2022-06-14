@@ -10,6 +10,7 @@ __version__ = "0.1"
 __maintainer__ = "Enrico Prataviera"
 
 import numpy as np
+import logging
 
 
 def darcy_equation(ff, reinolds, roughness, diameter):
@@ -30,6 +31,222 @@ def darcy_equation_der(ff, reinolds, roughness, diameter):
             / (roughness / (3.7 * diameter) + 2.51 / (reinolds * np.sqrt(ff)))
         )
     )
+
+
+def hydraulic_balance_system_SIMPLE(x0, q, network, timestep):
+    # Boundary conditions
+    # h: pressures, G_ext: massflow rates
+    h = q[network._nodes_number :]
+    G_ext = q[: network._nodes_number]
+    # Tollerances and first try vectors
+    tol_P = 100
+    tol_G = 1
+    G0 = x0[: network._branches_number]
+    P0 = x0[network._branches_number :]
+    # Little changes to avoid zero divisions in the solution
+    G0 = G0 + np.linspace(-1, 1, len(G0)) * 2.0
+    P0 = P0 + np.linspace(-1, 1, len(P0)) * 5000.0
+    n_iter = 0
+    while tol_P > 50 or tol_G > 0.01:
+        n_iter += 1
+        if n_iter > 1000:
+            logging.error(
+                f"Timestep {timestep}: maximum number of iteration for the solution of the hydraulic system reached"
+            )
+            raise ValueError(
+                f"Timestep {timestep}: maximum number of iteration for the solution of the hydraulic system reached"
+            )
+        # Iterative scheme
+        if np.linalg.norm(G0) > 1e-5:
+            # The case of non-null mass flow rates
+            R = np.array(
+                [
+                    branch.calc_hydraulic_resistance(G0[i])[0] * np.abs(G0[i])
+                    if np.abs(G0[i]) > 1e-6
+                    else 1e-6
+                    for i, branch in enumerate(network._branches_object_ordered_list)
+                ]
+            )
+            Y = np.diag(1 / np.abs(R))
+            P_star = P0
+            if tol_G > 0.01:
+                # Case where G is changed
+                G_star = Y @ network._adjacency_matrix.transpose() @ P_star + Y @ h
+                # new calculation of Y
+                _R = np.array(
+                    [
+                        branch.calc_hydraulic_resistance(G_star[i])[0]
+                        * np.abs(G_star[i])
+                        if np.abs(G_star[i]) > 1e-6
+                        else 1e-6
+                        for i, branch in enumerate(
+                            network._branches_object_ordered_list
+                        )
+                    ]
+                )
+                Y_star = np.diag(1 / np.abs(_R))
+            else:
+                # Otherwise it keeps the old G
+                G_star = G0
+                Y_star = Y
+            ##########################################################
+            # Delta calculation creating the equation 11-12 combined #
+            ##########################################################
+            aux_A_Q = network._adjacency_matrix
+            aux_q_Q = -network._adjacency_matrix @ G_star - G_ext
+
+            aux_A_P = -(Y_star @ network._adjacency_matrix.transpose())
+            aux_q_P = np.zeros(network._branches_number)
+
+            aux_A = np.vstack(
+                [
+                    np.hstack(
+                        [
+                            aux_A_Q,
+                            np.zeros([network._nodes_number, network._nodes_number]),
+                        ]
+                    ),
+                    np.hstack([np.eye(network._branches_number), aux_A_P]),
+                ]
+            )
+            aux_q = np.hstack([aux_q_Q, aux_q_P])
+            # One of the nodes mass balances is deleted and a node's pressure is set
+            aux_A_ = np.delete(aux_A, network._first_supply_node_idx, 0)
+            aux_q_ = np.delete(aux_q, network._first_supply_node_idx)
+            aux_A_ = np.vstack(
+                [aux_A_, np.zeros(network._branches_number + network._nodes_number)]
+            )
+            aux_q_ = np.hstack([aux_q_, 0])
+            aux_A_[-1, network._branches_number + network._first_supply_node_idx] = 1
+            # Solution of the system for the deltas
+            delta = np.linalg.solve(aux_A_, aux_q_)
+
+            delta_G_corr = delta[: network._branches_number]
+            delta_P_corr = delta[network._branches_number :]
+            # Correction of the G and P vectors
+            G = G_star + delta_G_corr
+            P = P_star + delta_P_corr
+            # Only the G vector is kept
+            # On the contrary the P vector is calculated again based on the new G vector and the system
+            # The system is create using Gand the new resistance
+            __R = np.array(
+                [
+                    branch.calc_hydraulic_resistance(G[i])[0] * np.abs(G[i])
+                    if np.abs(G[i]) > 1e-6
+                    else 1e-6
+                    for i, branch in enumerate(network._branches_object_ordered_list)
+                ]
+            )
+            R = np.diag(np.abs(__R))
+
+            aux_A = np.vstack(
+                [
+                    np.hstack(
+                        [
+                            network._adjacency_matrix,
+                            np.zeros([network._nodes_number, network._nodes_number]),
+                        ]
+                    ),
+                    np.hstack([-R, network._adjacency_matrix.transpose()]),
+                ]
+            )
+            aux_q = np.hstack([-G_ext, -h])
+            # One of the nodes mass balances is deleted and a node's pressure is set
+            aux_A_ = np.delete(aux_A, network._first_supply_node_idx, 0)
+            aux_q_ = np.delete(aux_q, network._first_supply_node_idx)
+            aux_A_ = np.vstack(
+                [aux_A_, np.zeros(network._branches_number + network._nodes_number)]
+            )
+            aux_q_ = np.hstack([aux_q_, 0])
+            aux_A_[-1, network._branches_number + network._first_supply_node_idx] = 1
+
+            GP = np.linalg.solve(aux_A_, aux_q_)
+
+            G = GP[: network._branches_number]
+            P = GP[network._branches_number :]
+
+            # # aux_A = np.insert(
+            # #     self._adjacency_matrix.transpose(),
+            # #     self._first_supply_node_idx,
+            # #     0,
+            # #     axis=0,
+            # # )
+            # # aux_A[self._first_supply_node_idx, self._first_supply_node_idx] = 1
+            # # aux_q = np.insert(
+            # #     np.dot(np.diag(__R), G) - h, self._first_supply_node_idx, 0
+            # # )
+            # # P = np.linalg.solve(aux_A, aux_q)
+
+            tol_P = np.linalg.norm(P0 - P)
+            tol_G = np.linalg.norm(G0 - G)
+
+            P0 = P
+            G0 = G
+        else:
+            # This is the case where the mass flow rates are zeros
+            P0 = P0 * 0  # And the pumps?
+            G0 = G0 * 0
+            tol_P = 0.0001
+            tol_G = 0.0001
+    # In case there are some over pressures the system is solved again
+    __R = np.array(
+        [
+            branch.calc_hydraulic_resistance(G0[i])[0] * np.abs(G0[i])
+            if np.abs(G0[i]) > 1e-6
+            else 1e-6
+            for i, branch in enumerate(network._branches_object_ordered_list)
+        ]
+    )
+    R = np.diag(np.abs(__R))
+
+    aux_A = np.vstack(
+        [
+            np.hstack(
+                [
+                    network._adjacency_matrix,
+                    np.zeros([network._nodes_number, network._nodes_number]),
+                ]
+            ),
+            np.hstack([-R, network._adjacency_matrix.transpose()]),
+        ]
+    )
+    aux_q = np.hstack([-G_ext, -h])
+
+    aux_A_ = np.delete(aux_A, network._first_supply_node_idx, 0)
+    aux_q_ = np.delete(aux_q, network._first_supply_node_idx)
+    aux_A_ = np.vstack(
+        [aux_A_, np.zeros(network._branches_number + network._nodes_number)]
+    )
+    aux_q_ = np.hstack([aux_q_, 0])
+    aux_A_[-1, network._branches_number + network._first_supply_node_idx] = 1
+
+    try:
+        GP = np.linalg.solve(aux_A_, aux_q_)
+    except np.linalg.LinAlgError:
+        GP = np.hstack([G0, P0])
+        logging.error(f"Timestep {timestep}: singular matrix.")
+    G = GP[: network._branches_number]
+    P = GP[network._branches_number :]
+    # aux_A = np.insert(
+    #     self._adjacency_matrix.transpose(),
+    #     self._first_supply_node_idx,
+    #     0,
+    #     axis=0,
+    # )
+    # aux_A[self._first_supply_node_idx, self._first_supply_node_idx] = 1
+    # aux_q = np.insert(
+    #     np.dot(np.diag(__R), G) - h, self._first_supply_node_idx, 0
+    # )
+    # P = np.linalg.solve(aux_A, aux_q)
+    ff = np.array(
+        [
+            branch.calc_hydraulic_resistance(G[i])[1]
+            for i, branch in enumerate(network._branches_object_ordered_list)
+        ]
+    )
+
+    x = np.hstack([G, P, ff])
+    return x
 
 
 def hydraulic_balance_system(x, q, network):

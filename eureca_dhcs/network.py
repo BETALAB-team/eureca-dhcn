@@ -17,6 +17,7 @@ from eureca_dhcs.branch import Branch
 from eureca_dhcs.soil import Soil
 from eureca_dhcs._hydraulic_system_function import (
     hydraulic_balance_system,
+    hydraulic_balance_system_SIMPLE,
     hydraulic_balance_system_jac,
 )
 from eureca_dhcs._thermal_system_function import (
@@ -319,6 +320,7 @@ class Network:
             branch._demand_node_object = self._nodes_object_dict[
                 branch._demand_node_idx
             ]
+            # TODO: Check if supply nodes have "supply" as node type (same for demand)
 
             # Adding branch to the node objects
             # Add to the supply node the branch (it is considered as demand branch for the node)
@@ -603,6 +605,52 @@ class Network:
             except KeyError:
                 branch._pump_pressure_raise = np.zeros(number_of_timesteps)
 
+    def solve_hydraulic_balance_SIMPLE(self, timestep: int):
+        # https://www.sciencedirect.com/science/article/pii/S0306261920309235
+        # Section 2.1
+        # Boundary condition
+        logging.debug(f"Timestep {timestep}")
+        """
+        x : np.array
+            array with the first try value [mass_flow_rates, pressures].
+        q : np.array
+            boundary conditions [nodes_mass_flow_rates, branches_pumps_pressure_raise].
+        """
+        q = self._generate_hydraulic_balance_boundary_condition(timestep)[
+            : (self._branches_number + self._nodes_number)
+        ]
+        if q[: self._nodes_number].sum() > 1e-10:
+            raise ValueError(
+                f"Timestep {timestep}: input - output mass flow rates not equal. Mass balance cannot be solved"
+            )
+        # First try vector
+        x0 = self._generate_hydraulic_balance_starting_vector(q, from_previous=True)[
+            : (self._branches_number + self._nodes_number)
+        ]
+
+        x = hydraulic_balance_system_SIMPLE(x0, q, self, timestep)
+
+        # demand_flow_rates = []
+        # supply_flow_rates = []
+        # for i, branch in enumerate(self._branches_object_ordered_list):
+        #     if branch._demand_node_object._node_type == "demand":
+        #         demand_flow_rates.append(x[i])
+        #         print(f"Demand branch: {branch._idx}")
+        #     elif branch._supply_node_object._node_type == "supply":
+        #         supply_flow_rates.append(x[i])
+        #         print(f"Supply branch: {branch._idx}")
+        G_ext = -1 * np.dot(self._adjacency_matrix, x[: self._branches_number])
+        if G_ext.sum() > 1e5:
+            logging.error(
+                f"Timestep {timestep}: mass balance not consistent. Trying again ..."
+            )
+            x = hydraulic_balance_system_SIMPLE(
+                x[: self._nodes_number + self._branches_number], q, self, timestep
+            )
+        else:
+            logging.debug(f"Timestep {timestep}: consistent mass balance.")
+        self._set_hydraulic_balance_results_vector(x)
+
     def solve_hydraulic_balance(self, timestep: int):
         # Boundary condition
         logging.debug(f"Timestep {timestep}")
@@ -697,7 +745,7 @@ class Network:
         #     method="hybr",
         # )
         ################################################################
-        x, A, q = thermal_balance_system_inverse(self, q, time_interval)
+        x, A, q = thermal_balance_system_inverse(self, q, time_interval, timestep)
         self._set_thermal_balance_results_vector(x, time_interval)
 
         return x, A, q
@@ -966,7 +1014,7 @@ class Network:
             os.path.join(self.output_path, "BranchMassFlowRates.csv"), "w"
         ) as branches:
             branches.write(branches_pressures_header[:-1] + "\n")
-            np.savetxt(branches, matrix, delimiter=",", fmt="%.2f")
+            np.savetxt(branches, matrix, delimiter=",", fmt="%.15f")
 
     def save_nodes_temperatures(self):
         nodes_temperatures_header = ""
@@ -993,242 +1041,6 @@ class Network:
         ) as branches:
             branches.write(branches_temperatures_header[:-1] + "\n")
             np.savetxt(branches, matrix, delimiter=",", fmt="%.2f")
-
-    def solve_hydraulic_balance_SIMPLE(self, timestep: int):
-        # https://www.sciencedirect.com/science/article/pii/S0306261920309235
-        # Section 2.1
-        # Boundary condition
-        logging.debug(f"Timestep {timestep}")
-        """
-        x : np.array
-            array with the first try value [mass_flow_rates, pressures].
-        q : np.array
-            boundary conditions [nodes_mass_flow_rates, branches_pumps_pressure_raise].
-        """
-        q = self._generate_hydraulic_balance_boundary_condition(timestep)[
-            : (self._branches_number + self._nodes_number)
-        ]
-        if q[: self._nodes_number].sum() > 1e-10:
-            raise ValueError(
-                f"Timestep {timestep}: input - output mass flow rates not equal. Mass balance cannot be solved"
-            )
-        # First try vector
-        x0 = self._generate_hydraulic_balance_starting_vector(q, from_previous=True)[
-            : (self._branches_number + self._nodes_number)
-        ]
-        # Boundary conditions
-        # h: pressures, G_ext: massflow rates
-        h = q[self._nodes_number :]
-        G_ext = q[: self._nodes_number]
-        # Tollerances and first try vectors
-        tol_P = 100
-        tol_G = 1
-        G0 = x0[: self._branches_number]
-        P0 = x0[self._branches_number :]
-        # Little changes to avoid zero divisions in the solution
-        G0 = G0 + np.linspace(-1, 1, len(G0)) * 2.0
-        P0 = P0 + np.linspace(-1, 1, len(P0)) * 5000.0
-        n_iter = 0
-        while tol_P > 50 or tol_G > 0.01:
-            n_iter += 1
-            if n_iter > 1000:
-                logging.error(
-                    f"Timestep {timestep}: maximum number of iteration for the solution of the hydraulic system reached"
-                )
-                raise ValueError(
-                    f"Timestep {timestep}: maximum number of iteration for the solution of the hydraulic system reached"
-                )
-            # Iterative scheme
-            if np.linalg.norm(G0) > 1e-5:
-                # The case of non-null mass flow rates
-                R = np.array(
-                    [
-                        branch.calc_hydraulic_resistance(G0[i])[0] * np.abs(G0[i])
-                        if np.abs(G0[i]) > 1e-6
-                        else 1e-6
-                        for i, branch in enumerate(self._branches_object_ordered_list)
-                    ]
-                )
-                Y = np.diag(1 / np.abs(R))
-                P_star = P0
-                if tol_G > 0.01:
-                    # Case where G is changed
-                    G_star = Y @ self._adjacency_matrix.transpose() @ P_star + Y @ h
-                    # new calculation of Y
-                    _R = np.array(
-                        [
-                            branch.calc_hydraulic_resistance(G_star[i])[0]
-                            * np.abs(G_star[i])
-                            if np.abs(G_star[i]) > 1e-6
-                            else 1e-6
-                            for i, branch in enumerate(
-                                self._branches_object_ordered_list
-                            )
-                        ]
-                    )
-                    Y_star = np.diag(1 / np.abs(_R))
-                else:
-                    # Otherwise it keeps the old G
-                    G_star = G0
-                    Y_star = Y
-                ##########################################################
-                # Delta calculation creating the equation 11-12 combined #
-                ##########################################################
-                aux_A_Q = self._adjacency_matrix
-                aux_q_Q = -self._adjacency_matrix @ G_star - G_ext
-
-                aux_A_P = -(Y_star @ self._adjacency_matrix.transpose())
-                aux_q_P = np.zeros(self._branches_number)
-
-                aux_A = np.vstack(
-                    [
-                        np.hstack(
-                            [
-                                aux_A_Q,
-                                np.zeros([self._nodes_number, self._nodes_number]),
-                            ]
-                        ),
-                        np.hstack([np.eye(self._branches_number), aux_A_P]),
-                    ]
-                )
-                aux_q = np.hstack([aux_q_Q, aux_q_P])
-                # One of the nodes mass balances is deleted and a node's pressure is set
-                aux_A_ = np.delete(aux_A, self._first_supply_node_idx, 0)
-                aux_q_ = np.delete(aux_q, self._first_supply_node_idx)
-                aux_A_ = np.vstack(
-                    [aux_A_, np.zeros(self._branches_number + self._nodes_number)]
-                )
-                aux_q_ = np.hstack([aux_q_, 0])
-                aux_A_[-1, self._branches_number + self._first_supply_node_idx] = 1
-                # Solution of the system for the deltas
-                delta = np.linalg.solve(aux_A_, aux_q_)
-
-                delta_G_corr = delta[: self._branches_number]
-                delta_P_corr = delta[self._branches_number :]
-                # Correction of the G and P vectors
-                G = G_star + delta_G_corr
-                P = P_star + delta_P_corr
-                # Only the G vector is kept
-                # On the contrary the P vector is calculated again based on the new G vector and the system
-                # The system is create using Gand the new resistance
-                __R = np.array(
-                    [
-                        branch.calc_hydraulic_resistance(G[i])[0] * np.abs(G[i])
-                        if np.abs(G[i]) > 1e-6
-                        else 1e-6
-                        for i, branch in enumerate(self._branches_object_ordered_list)
-                    ]
-                )
-                R = np.diag(np.abs(__R))
-
-                aux_A = np.vstack(
-                    [
-                        np.hstack(
-                            [
-                                self._adjacency_matrix,
-                                np.zeros([self._nodes_number, self._nodes_number]),
-                            ]
-                        ),
-                        np.hstack([-R, self._adjacency_matrix.transpose()]),
-                    ]
-                )
-                aux_q = np.hstack([-G_ext, -h])
-                # One of the nodes mass balances is deleted and a node's pressure is set
-                aux_A_ = np.delete(aux_A, self._first_supply_node_idx, 0)
-                aux_q_ = np.delete(aux_q, self._first_supply_node_idx)
-                aux_A_ = np.vstack(
-                    [aux_A_, np.zeros(self._branches_number + self._nodes_number)]
-                )
-                aux_q_ = np.hstack([aux_q_, 0])
-                aux_A_[-1, self._branches_number + self._first_supply_node_idx] = 1
-
-                GP = np.linalg.solve(aux_A_, aux_q_)
-
-                G = GP[: self._branches_number]
-                P = GP[self._branches_number :]
-
-                # # aux_A = np.insert(
-                # #     self._adjacency_matrix.transpose(),
-                # #     self._first_supply_node_idx,
-                # #     0,
-                # #     axis=0,
-                # # )
-                # # aux_A[self._first_supply_node_idx, self._first_supply_node_idx] = 1
-                # # aux_q = np.insert(
-                # #     np.dot(np.diag(__R), G) - h, self._first_supply_node_idx, 0
-                # # )
-                # # P = np.linalg.solve(aux_A, aux_q)
-
-                tol_P = np.linalg.norm(P0 - P)
-                tol_G = np.linalg.norm(G0 - G)
-
-                P0 = P
-                G0 = G
-            else:
-                # This is the case where the mass flow rates are zeros
-                P0 = P0 * 0  # And the pumps?
-                G0 = G0 * 0
-                tol_P = 0.0001
-                tol_G = 0.0001
-        # In case there are some over pressures the system is solved again
-        __R = np.array(
-            [
-                branch.calc_hydraulic_resistance(G0[i])[0] * np.abs(G0[i])
-                if np.abs(G0[i]) > 1e-6
-                else 1e-6
-                for i, branch in enumerate(self._branches_object_ordered_list)
-            ]
-        )
-        R = np.diag(np.abs(__R))
-
-        aux_A = np.vstack(
-            [
-                np.hstack(
-                    [
-                        self._adjacency_matrix,
-                        np.zeros([self._nodes_number, self._nodes_number]),
-                    ]
-                ),
-                np.hstack([-R, self._adjacency_matrix.transpose()]),
-            ]
-        )
-        aux_q = np.hstack([-G_ext, -h])
-
-        aux_A_ = np.delete(aux_A, self._first_supply_node_idx, 0)
-        aux_q_ = np.delete(aux_q, self._first_supply_node_idx)
-        aux_A_ = np.vstack(
-            [aux_A_, np.zeros(self._branches_number + self._nodes_number)]
-        )
-        aux_q_ = np.hstack([aux_q_, 0])
-        aux_A_[-1, self._branches_number + self._first_supply_node_idx] = 1
-
-        try:
-            GP = np.linalg.solve(aux_A_, aux_q_)
-        except np.linalg.LinAlgError:
-            GP = np.hstack([G0, P0])
-            logging.error(f"Timestep {timestep}: singular matrix.")
-        G = GP[: self._branches_number]
-        P = GP[self._branches_number :]
-        # aux_A = np.insert(
-        #     self._adjacency_matrix.transpose(),
-        #     self._first_supply_node_idx,
-        #     0,
-        #     axis=0,
-        # )
-        # aux_A[self._first_supply_node_idx, self._first_supply_node_idx] = 1
-        # aux_q = np.insert(
-        #     np.dot(np.diag(__R), G) - h, self._first_supply_node_idx, 0
-        # )
-        # P = np.linalg.solve(aux_A, aux_q)
-        ff = np.array(
-            [
-                branch.calc_hydraulic_resistance(G[i])[1]
-                for i, branch in enumerate(self._branches_object_ordered_list)
-            ]
-        )
-
-        x = np.hstack([G, P, ff])
-        self._set_hydraulic_balance_results_vector(x)
 
     @classmethod
     def from_shapefiles(
