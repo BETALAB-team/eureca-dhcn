@@ -181,10 +181,13 @@ def thermal_balance_system_inverse(network, q, time_interval, timestep):
         else:
             supply_node = branch._supply_node_object
             demand_node = branch._demand_node_object
-        AT[line, supply_node._unique_matrix_idx] = (
-            C / (2 * time_interval) - G + f_loss / 2
-        )
-        AT[line, line] = C / (2 * time_interval) + G + f_loss / 2
+        if np.abs(branch._mass_flow_rate) > 1e-3:
+            AT[line, supply_node._unique_matrix_idx] = (
+                C / (2 * time_interval) - G + f_loss / 2
+            )
+            AT[line, line] = C / (2 * time_interval) + G + f_loss / 2
+        else:
+            AT[line, line] = C / time_interval + f_loss
         # # Equation for average between exit and entering temperatur
         # AT[line + network._branches_number, supply_node._unique_matrix_idx] = 1
         # AT[line + network._branches_number, line + network._branches_number] = 1
@@ -195,12 +198,13 @@ def thermal_balance_system_inverse(network, q, time_interval, timestep):
         mass_flow_rates_q_0.append(
             +f_loss * t_ground + C * branch._branch_temperature / time_interval
         )
-        logging.debug(f"T ground branch {branch._idx}: {t_ground} °C")
+        if t_ground > 20:
+            logging.warning(f"T ground branch {branch._idx}: {t_ground} °C")
     mass_flow_rates = np.array(mass_flow_rates)
     if np.linalg.norm(mass_flow_rates) > 1e-4:
         try:
             x = np.linalg.solve(AT, q)
-            raise np.linalg.LinAlgError
+            # raise np.linalg.LinAlgError
         except np.linalg.LinAlgError:
             logging.warning(f"Thermal system not solved, trying with iterative method")
             res = lsq_linear(AT, q)
@@ -220,6 +224,7 @@ def thermal_balance_system_inverse(network, q, time_interval, timestep):
                 + x[network._nodes_number + branch._unique_matrix_idx]
             ) / 2
     else:
+        # Case all mass flows 0
         # Low mass flow rates case
         x = np.array([np.nan] * (network._nodes_number + network._nodes_number))
         t_branch = np.linalg.solve(
