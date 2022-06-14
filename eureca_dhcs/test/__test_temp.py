@@ -112,15 +112,41 @@ ax1.plot(
     linestyle="-.",
     label=["supply branch", "central branch", "demand branch"],
 )
-
-ax2.plot(
-    nt2.values,
-    label=["supply node 1", "supply node 2", "central node", "demand node"],
+bt2.rename(
+    {
+        "344": "demand branch",
+        "144": "supply branch 1",
+        "244": "supply branch 2",
+    },
+    axis=1,
+    inplace=True,
 )
-ax2.plot(
-    bt2.values,
+bp2.rename(
+    {
+        "344": "demand branch",
+        "144": "supply branch 1",
+        "244": "supply branch 2",
+    },
+    axis=1,
+    inplace=True,
+)
+nt2.rename(
+    {
+        "144": "supply node 1",
+        "244": "supply node 2",
+        "344": "central node",
+        "444": "demand node",
+    },
+    axis=1,
+    inplace=True,
+)
+nt2.plot(
+    ax=ax2,
+)
+
+bt2.plot(
+    ax=ax2,
     linestyle="-.",
-    label=["supply branch 1", "supply branch 2", "demand branch"],
 )
 
 ax3.plot(
@@ -129,14 +155,9 @@ ax3.plot(
     label=["supply branch", "central branch", "demand branch"],
 )
 
-ax4.plot(
-    bp2.values,
+bp2.plot(
+    ax=ax4,
     linestyle="-.",
-    label=[
-        "demand branch",
-        "supply branch 2",
-        "supply branch 1",
-    ],
 )
 
 ax1.set_title("One line 10 segments test")
@@ -187,6 +208,7 @@ for ax in [ax1, ax2]:
     ax.set_xlabel(f"Timestep [{time_int} s]")
     ax.set_ylim([40, 52])
     ax.set_xlim([0, 600])
+    ax.legend()
 for ax in [ax3, ax4]:
     ax.legend(loc="upper right")
     ax.grid()
