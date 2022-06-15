@@ -181,12 +181,15 @@ def thermal_balance_system_inverse(network, q, time_interval, timestep):
         else:
             supply_node = branch._supply_node_object
             demand_node = branch._demand_node_object
-        if np.abs(branch._mass_flow_rate) > 1e-3:
+        if branch.check_courant_stability(time_interval) * 0.1 < np.abs(
+            branch._mass_flow_rate
+        ):
             AT[line, supply_node._unique_matrix_idx] = (
                 C / (2 * time_interval) - G + f_loss / 2
             )
             AT[line, line] = C / (2 * time_interval) + G + f_loss / 2
         else:
+            # In case the mass flow rate is really low
             AT[line, line] = C / time_interval + f_loss
         # # Equation for average between exit and entering temperatur
         # AT[line + network._branches_number, supply_node._unique_matrix_idx] = 1
@@ -219,11 +222,19 @@ def thermal_balance_system_inverse(network, q, time_interval, timestep):
                 supply_node = branch._demand_node_object
             else:
                 supply_node = branch._supply_node_object
-            t_branch[branch._unique_matrix_idx] = (
-                x[supply_node._unique_matrix_idx]
-                + x[network._nodes_number + branch._unique_matrix_idx]
-            ) / 2
+            if branch.check_courant_stability(time_interval) * 0.1 < np.abs(
+                branch._mass_flow_rate
+            ):
+                t_branch[branch._unique_matrix_idx] = (
+                    x[supply_node._unique_matrix_idx]
+                    + x[network._nodes_number + branch._unique_matrix_idx]
+                ) / 2
+            else:
+                t_branch[branch._unique_matrix_idx] = x[
+                    network._nodes_number + branch._unique_matrix_idx
+                ]
     else:
+        logging.warning(f"Mass flow rates norm 0")
         # Case all mass flows 0
         # Low mass flow rates case
         x = np.array([np.nan] * (network._nodes_number + network._nodes_number))

@@ -485,12 +485,22 @@ class Branch:
 
     def check_courant_stability(self, time_interval):
         if (
-            time_interval < self._pipe_len / self._fluid_velocity
-            and self._mass_flow_rate > 5e-5
+            time_interval < self._pipe_len / np.abs(self._fluid_velocity)
+            and np.abs(self._mass_flow_rate) > 5e-5
         ):
             logging.warning(
                 f"Branch {self._idx}, the temperature profile can be unstable (mass flow rate: {self._mass_flow_rate} kg/s). Subdivide the branch or increase the timestep (at least to {self._pipe_len / self._fluid_velocity:.0f} s)"
             )
+            limit_velocity = self._pipe_len / time_interval
+            limit_mass_flow_rate = (
+                limit_velocity
+                * self._pipe_int_diameter**2
+                * np.pi
+                / 4
+                * self.get_density()
+            )
+            return limit_mass_flow_rate
+        return -1
 
     def calc_hydraulic_resistance(self, mass_flow_rate):
         reinolds = np.abs(
