@@ -6,6 +6,7 @@ __maintainer__ = "Enrico Prataviera"
 
 import os
 import logging
+import copy
 
 import numpy as np
 import geopandas as gpd
@@ -23,6 +24,7 @@ from eureca_dhcs._hydraulic_system_function import (
 from eureca_dhcs._thermal_system_function import (
     thermal_balance_system_optimization,
     thermal_balance_system_inverse,
+    thermal_balance_system_inverse_return,
 )
 from eureca_dhcs.exceptions import (
     EmptyNetworkNodes,
@@ -104,9 +106,13 @@ class Network:
         # This two contains only the dictionary, with str and integer
         self._nodes_json_dict = nodes_dict
         self._branch_json_dict = branches_dict
+        self._return_nodes_json_dict = self._define_return_nodes(nodes_dict)
+        self._return_branch_json_dict = self._define_return_branches(branches_dict)
         # These two are use to include the Node and Branch objects
         self._nodes_object_dict = {}
         self._branches_object_dict = {}
+        self._return_nodes_object_dict = {}
+        self._return_branches_object_dict = {}
         # Needed to vectorize hydraulic resistances
         self._branches_object_ordered_list = []
         self._nodes_object_ordered_list = []
@@ -139,6 +145,36 @@ class Network:
                 f"Network soil object, a soil object must be passed. Type: {type(value)}"
             )
         self.__soil_obj = value
+
+    def _define_return_nodes(self, nodes_dict):
+        nodes_dict_return = {}
+        for node_name, node in nodes_dict.items():
+            nodes_dict_return[node_name * -1] = copy.deepcopy(node)
+            if node["node type"] == "supply":
+                nodes_dict_return[node_name * -1]["node type"] = "demand"
+            if node["node type"] == "demand":
+                nodes_dict_return[node_name * -1]["node type"] = "supply"
+            nodes_dict_return[node_name * -1]["supply nodes"] = [
+                "-" + n for n in node["demand nodes"]
+            ]
+            nodes_dict_return[node_name * -1]["demand nodes"] = [
+                "-" + n for n in node["supply nodes"]
+            ]
+            nodes_dict_return[node_name * -1]["id"] = str(node_name * -1)
+        return nodes_dict_return
+
+    def _define_return_branches(self, branches_dict):
+        branches_dict_return = {}
+        for branch_name, branch in branches_dict.items():
+            branches_dict_return[branch_name * -1] = copy.deepcopy(branch)
+            branches_dict_return[branch_name * -1]["id"] = str(branch_name * -1)
+            branches_dict_return[branch_name * -1]["supply node"] = (
+                "-" + branch["demand node"]
+            )
+            branches_dict_return[branch_name * -1]["demand node"] = (
+                "-" + branch["supply node"]
+            )
+        return branches_dict_return
 
     def _create_output_folder(self):
         if self.output_path == None:
@@ -179,6 +215,24 @@ class Network:
             self._nodes_object_ordered_list.append(self._nodes_object_dict[node["id"]])
             if self._nodes_object_dict[node["id"]]._first_supply_node:
                 self._first_supply_node_idx = len(self._nodes_object_ordered_list) - 1
+        for idx, node in self._nodes_json_dict.items():
+            # Twin return node
+            return_node_info = self._return_nodes_json_dict[idx * -1]
+            return_node = Node(
+                idx=return_node_info["id"],
+                node_type=return_node_info["node type"],
+                supply_nodes=return_node_info["supply nodes"],
+                demand_nodes=return_node_info["demand nodes"],
+                x=return_node_info["x"],
+                y=return_node_info["y"],
+                temperature_mode=temperature_mode,
+                avoid_counter=True,
+            )
+            return_node._unique_matrix_idx = self._nodes_object_dict[
+                node["id"]
+            ]._unique_matrix_idx
+            self._nodes_object_dict[node["id"]].return_node = return_node
+            self._return_nodes_object_dict[return_node_info["id"]] = return_node
         self._nodes_number = int(len(self._nodes_object_dict.keys()))
 
     def _create_branches(self, temperature_mode):
@@ -243,6 +297,40 @@ class Network:
             self._branches_object_ordered_list.append(
                 self._branches_object_dict[branch["id"]]
             )
+        for idx, branch in self._branch_json_dict.items():
+            # Twin return node NOT in the previous cicle
+            return_branch_info = self._return_branch_json_dict[idx * -1]
+            return_branch = Branch(
+                idx=return_branch_info["id"],
+                supply_node=return_branch_info["supply node"],
+                demand_node=return_branch_info["demand node"],
+                pipe_ext_diameter=return_branch_info["pipe ext diameter [m]"],
+                pipe_thickness=return_branch_info["pipe thickness [m]"],
+                pipe_depth=return_branch_info["depth [m]"],
+                insulation_thickness=return_branch_info["insulation thickness [m]"],
+                pipe_conductivity=return_branch_info["pipe conductivity [W/(mK)]"],
+                insulation_conductivity=return_branch_info[
+                    "insulation conductivity [W/(mK)]"
+                ],
+                nodes_objects_dict=self._return_nodes_object_dict,
+                soil_obj=self._soil_obj,
+                temperature_mode=temperature_mode,
+                avoid_counter=True,
+            )
+            return_branch._unique_matrix_idx = self._branches_object_dict[
+                branch["id"]
+            ]._unique_matrix_idx
+            self._branches_object_dict[branch["id"]].return_branch = return_branch
+            self._return_branches_object_dict[return_branch_info["id"]] = return_branch
+
+            if "pipe length [m]" in return_branch_info.keys():
+                return_branch._pipe_len = return_branch_info["pipe length [m]"]
+            if "roughness [-]" in return_branch_info.keys():
+                return_branch._roughness = return_branch_info["roughness [-]"]
+            if "starting temperature [°C]" in return_branch_info.keys():
+                return_branch._previous_temp = return_branch_info[
+                    "starting temperature [°C]"
+                ]
         self._branches_number = int(len(self._branches_object_dict.keys()))
 
     def _couple_nodes_to_nodes(self):
@@ -281,6 +369,15 @@ class Network:
             }
             node._demand_nodes_objects = {
                 s_node: self._nodes_object_dict[s_node]
+                for s_node in node._demand_nodes_list
+            }
+        for node_idx, node in self._return_nodes_object_dict.items():
+            node._supply_nodes_objects = {
+                s_node: self._return_nodes_object_dict[s_node]
+                for s_node in node._supply_nodes_list
+            }
+            node._demand_nodes_objects = {
+                s_node: self._return_nodes_object_dict[s_node]
                 for s_node in node._demand_nodes_list
             }
 
@@ -331,6 +428,24 @@ class Network:
             self._nodes_object_dict[branch._demand_node_idx]._supply_branches_objects[
                 branch_idx
             ] = branch
+        for branch_idx, branch in self._return_branches_object_dict.items():
+            branch._supply_node_object = self._return_nodes_object_dict[
+                branch._supply_node_idx
+            ]
+            branch._demand_node_object = self._return_nodes_object_dict[
+                branch._demand_node_idx
+            ]
+            # TODO: Check if supply nodes have "supply" as node type (same for demand)
+
+            # Adding branch to the node objects
+            # Add to the supply node the branch (it is considered as demand branch for the node)
+            self._return_nodes_object_dict[
+                branch._supply_node_idx
+            ]._demand_branches_objects[branch_idx] = branch
+            # Add to the demand node the branch (it is considered as supply branch for the node)
+            self._return_nodes_object_dict[
+                branch._demand_node_idx
+            ]._supply_branches_objects[branch_idx] = branch
 
     def _calc_adjacency_matrix(self):
         # calc the coupling nodes/branches matrix
@@ -345,13 +460,11 @@ class Network:
         self._adjacency_matrix = -1 * connection_matrix
 
     def load_boundary_conditions_from_excel(
-        self,
-        excel_path: str,
-        number_of_timesteps: int,
+        self, excel_path: str, number_of_timesteps: int,
     ):
         boundaries = pd.read_excel(
             excel_path,
-            sheet_name=["Hydraulic", "Thermal"],
+            sheet_name=["Hydraulic", "Thermal", "Thermal Delta T",],
             index_col=0,
             header=[0, 1, 2],
             parse_dates=True,
@@ -376,7 +489,15 @@ class Network:
         nodes = boundaries["Thermal"]["Node"]["Temperature [°C]"]
         nodes_dict = nodes.to_dict(orient="List")
         nodes_dict = {str(k): np.array(node) for k, node in nodes_dict.items()}
-        self.load_thermal_boundary_conditions(nodes_dict, number_of_timesteps)
+
+        nodes_delta_T = boundaries["Thermal Delta T"]["Node"]["Delta Temperature [°C]"]
+        nodes_delta_T_dict = nodes_delta_T.to_dict(orient="List")
+        nodes_delta_T_dict = {
+            str(k): np.array(node) for k, node in nodes_delta_T_dict.items()
+        }
+        self.load_thermal_boundary_conditions(
+            nodes_dict, nodes_delta_T_dict, number_of_timesteps
+        )
 
         # DateTime Index
         self.set_timestep_serie(boundaries["Hydraulic"].index)
@@ -404,6 +525,7 @@ class Network:
     def load_thermal_boundary_conditions(
         self,
         nodes_boundary_conditions: dict,
+        nodes_boundary_conditions_delta_t: dict,
         number_of_timesteps: int,
     ):
         """
@@ -429,6 +551,9 @@ class Network:
         """
         self.load_nodes_temperature_boundary_condition(
             nodes_boundary_conditions, number_of_timesteps
+        )
+        self.load_nodes_delta_temperature_boundary_condition(
+            nodes_boundary_conditions_delta_t, number_of_timesteps
         )
 
     def load_nodes_temperature_boundary_condition(
@@ -466,6 +591,92 @@ class Network:
                     node._boundary_temperature = boundary_conditions[node_k][
                         :number_of_timesteps
                     ]
+                except KeyError:
+                    raise BoundaryConditionNotProvided(
+                        f"Node {node._idx}: the node is a {node._node_type} node, but no boundary temperature is provided.\nPlease provide a boundary condition"
+                    )
+            else:
+                # node._boundary_temperature = np.zeros(number_of_timesteps)
+                pass
+
+    def load_nodes_temperature_boundary_condition_timestep(
+        self, boundary_conditions: dict, timestep: int
+    ):
+        """
+        This method loads the temperature boundary conditions of the nodes for a single timestep.
+        It can be used to simulate a changing boundary
+        Use °C as reference unit.
+
+        Parameters
+        ----------
+        nodes_boundary_conditions : dict
+            Dictionary with the following sintax (temperature of the supply nodes):
+                "1" : float,
+                "3" : float,
+                .
+                .
+                ..
+
+        number_of_timesteps : int
+            Number of timesteps to be considered.
+
+        Returns
+        -------
+        None.
+        """
+
+        for node_idx, temp in boundary_conditions.items():
+            node = self._nodes_object_dict[node_idx]
+            if node._node_type in ["supply"]:
+                try:
+                    node._boundary_temperature[timestep] = temp
+                except ValueError:
+                    node._boundary_temperature[timestep - 1] = temp
+                except KeyError:
+                    raise BoundaryConditionNotProvided(
+                        f"Node {node._idx}: the timestep is outside the range. Provided timestep {timestep}"
+                    )
+            else:
+                # node._boundary_temperature = np.zeros(number_of_timesteps)
+                logging.warning(
+                    "Temperature setting for a non-supply node. Node {node_idx}"
+                )
+
+    def load_nodes_delta_temperature_boundary_condition(
+        self, boundary_conditions: dict, number_of_timesteps: int
+    ):
+        """
+        This method loads the temperature boundary conditions of the nodes (Delta T demand nodes).
+        Use °C as reference unit.
+
+        Parameters
+        ----------
+        nodes_boundary_conditions : dict
+            Dictionary with the following sintax (temperature of the supply nodes):
+                "1" : np.array([50,55,55,....]),
+                "3" : np.array([70,75,78,....]),
+                .
+                .
+                ..
+
+        number_of_timesteps : int
+            Number of timesteps to be considered.
+
+        Returns
+        -------
+        None.
+        """
+
+        for node_k, node in self._return_nodes_object_dict.items():
+            if node._node_type in ["supply"]:
+                try:
+                    if len(boundary_conditions[node_k[1:]]) < number_of_timesteps:
+                        raise ValueError(
+                            f"Node {node._idx}: the boundary condition for the node is shorter than the number of timesteps. Provide a longer boundary condition"
+                        )
+                    node._boundary_delta_temperature_demand = boundary_conditions[
+                        node_k[1:]
+                    ][:number_of_timesteps]
                 except KeyError:
                     raise BoundaryConditionNotProvided(
                         f"Node {node._idx}: the node is a {node._node_type} node, but no boundary temperature is provided.\nPlease provide a boundary condition"
@@ -616,40 +827,75 @@ class Network:
         q : np.array
             boundary conditions [nodes_mass_flow_rates, branches_pumps_pressure_raise].
         """
-        q = self._generate_hydraulic_balance_boundary_condition(timestep)[
-            : (self._branches_number + self._nodes_number)
-        ]
-        if q[: self._nodes_number].sum() > 1e-10:
-            raise ValueError(
-                f"Timestep {timestep}: input - output mass flow rates not equal. Mass balance cannot be solved"
-            )
-        # First try vector
-        x0 = self._generate_hydraulic_balance_starting_vector(q, from_previous=True)[
-            : (self._branches_number + self._nodes_number)
-        ]
+        self.hydraulic_balance_success = False
+        n_try = 0
+        maximum_number_of_iteration = 10
+        from_previous = False
+        # Generate a random x0 multiplying x0 by a random factor r
+        # This is to force root function to find a solution
+        while (
+            not self.hydraulic_balance_success
+            and n_try < maximum_number_of_iteration + 1
+        ):
+            try:
+                q = self._generate_hydraulic_balance_boundary_condition(timestep)[
+                    : (self._branches_number + self._nodes_number)
+                ]
+                if q[: self._nodes_number].sum() > 1e-10:
+                    raise ValueError(
+                        f"Timestep {timestep}: input - output mass flow rates not equal. Mass balance cannot be solved"
+                    )
+                # First try vector
+                n_iter_max = 50 if n_try == 0 else 200
+                x0 = self._generate_hydraulic_balance_starting_vector(
+                    q,
+                    timestep,
+                    from_previous=from_previous,
+                    previous=n_try + 1,
+                    r=n_try,
+                )[: (self._branches_number + self._nodes_number)]
 
-        x = hydraulic_balance_system_SIMPLE(x0, q, self, timestep)
-
-        # demand_flow_rates = []
-        # supply_flow_rates = []
-        # for i, branch in enumerate(self._branches_object_ordered_list):
-        #     if branch._demand_node_object._node_type == "demand":
-        #         demand_flow_rates.append(x[i])
-        #         print(f"Demand branch: {branch._idx}")
-        #     elif branch._supply_node_object._node_type == "supply":
-        #         supply_flow_rates.append(x[i])
-        #         print(f"Supply branch: {branch._idx}")
-        G_ext = -1 * np.dot(self._adjacency_matrix, x[: self._branches_number])
-        if G_ext.sum() > 1e5:
-            logging.error(
-                f"Timestep {timestep}: mass balance not consistent. Trying again ..."
-            )
-            x = hydraulic_balance_system_SIMPLE(
-                x[: self._nodes_number + self._branches_number], q, self, timestep
-            )
-        else:
-            logging.debug(f"Timestep {timestep}: consistent mass balance.")
-        self._set_hydraulic_balance_results_vector(x)
+                x = hydraulic_balance_system_SIMPLE(x0, q, self, timestep, n_iter_max)
+                self.hydraulic_balance_success = True
+                # Check the mass balanc
+                G_ext = -1 * np.dot(self._adjacency_matrix, x[: self._branches_number])
+                if G_ext.sum() > 1e5:
+                    logging.error(
+                        f"Timestep {timestep}: mass balance not consistent. Trying again ..."
+                    )
+                    x = hydraulic_balance_system_SIMPLE(
+                        x[: self._nodes_number + self._branches_number],
+                        q,
+                        self,
+                        timestep,
+                    )
+                else:
+                    logging.debug(f"Timestep {timestep}: consistent mass balance.")
+                self._set_hydraulic_balance_results_vector(x)
+                from_previous = True
+            except HydraulicSystemNotSolved:
+                print(
+                    (
+                        f"Timestep {timestep}: hydraulic system solution not found after {n_try} tries"
+                    )
+                )
+                if n_try > maximum_number_of_iteration - 1:
+                    logging.critical(
+                        f"Timestep {timestep}: hydraulic system solution not found after {n_try} tries"
+                    )
+                    print(
+                        f"################# timestep {timestep} CRITICAL ##################"
+                    )
+                    # raise HydraulicSystemNotSolved(
+                    #     f"Timestep {timestep}: hydraulic system solution not found after {n_try} tries"
+                    # )
+                    from_previous = False
+                    mass_flow = np.array([0.0] * self._branches_number)
+                    pressures = np.array([0.0] * self._nodes_number)
+                    friction = np.array([0.0] * self._branches_number)
+                    x = np.hstack([mass_flow, pressures, friction])
+                    self._set_hydraulic_balance_results_vector(x)
+                n_try += 1
 
     def solve_hydraulic_balance(self, timestep: int):
         # Boundary condition
@@ -748,6 +994,14 @@ class Network:
         x, A, q = thermal_balance_system_inverse(self, q, time_interval, timestep)
         self._set_thermal_balance_results_vector(x, time_interval)
 
+        return_q = self._generate_thermal_balance_boundary_condition_return(
+            timestep, time_interval
+        )
+        return_x, return_A, return_q = thermal_balance_system_inverse_return(
+            self, return_q, time_interval, timestep
+        )
+        self._set_thermal_balance_results_vector_return(return_x, time_interval)
+
         return x, A, q
 
     def _generate_hydraulic_balance_boundary_condition(self, timestep):
@@ -777,7 +1031,9 @@ class Network:
         [q.append(0) for i in range(self._branches_number)]
         return np.array(q)
 
-    def _generate_hydraulic_balance_starting_vector(self, q, from_previous=False):
+    def _generate_hydraulic_balance_starting_vector(
+        self, q, timestep, from_previous=False, previous=1, r=1
+    ):
         """
         Generate the starting guess vector from the value of the previous timestep
         stored in the nodes and branches abjects
@@ -804,16 +1060,16 @@ class Network:
         #     ]
         # )
         if from_previous:
-            r = 0
+            r = 10 * r * np.random.rand()
             branches_mass_flow_rates = np.array(
                 [
-                    branch._mass_flow_rate + r / 10
+                    branch._mass_flow_rate_array[timestep - previous] + r / 10
                     for branch in self._branches_object_ordered_list
                 ]
             )
             nodes_pressures = np.array(
                 [
-                    node._node_pressure + r * 10
+                    node._node_pressure_array[timestep - previous] + r * 10
                     for node in self._nodes_object_ordered_list
                 ]
             )
@@ -882,6 +1138,64 @@ class Network:
             q.append(C * branch._branch_temperature / time_interval + f_loss * T_ground)
         return np.array(q)
 
+    def _generate_thermal_balance_boundary_condition_return(
+        self, timestep, time_interval
+    ):
+        """
+        Generate thermal balance know term
+        Equations are node mixing balances and branches energy balance
+
+        Parameters
+        ----------
+        timestep : int
+            This is the current time step the simulation is calculating.
+        time_interval : int
+            The time interval between timestep in seconds.
+
+        Raises
+        ------
+        IndexError
+            If the timestep is over the boundary condition.
+
+        Returns
+        -------
+        np.array
+            array of the known terms.
+
+        """
+
+        return_q = []
+        for node in self._nodes_object_ordered_list:
+            return_node = node.return_node
+            try:
+                # This is a delta and must be subtracted
+                return_node_temperature = (
+                    node._node_temperature
+                    - return_node._boundary_delta_temperature_demand[timestep]
+                )
+                return_q.append(return_node_temperature)
+            except AttributeError:
+                return_q.append(0.0)  # This is the case of a
+            except IndexError:
+                raise IndexError(
+                    f"Node {node._idx}: selected timestep {timestep} longer than boundary conditions. "
+                )
+        day = self.timestep_array[timestep].dayofyear
+
+        for branch in self._branches_object_ordered_list:
+            return_branch = branch.return_branch
+            T_ground = self._soil_obj.get_soil_temperature(
+                day, return_branch._pipe_depth
+            )
+            C = return_branch.get_dynamic_capacity()
+            f_loss = return_branch.ground_loss_factor
+
+            return_q.append(
+                C * return_branch._branch_temperature / time_interval
+                + f_loss * T_ground
+            )
+        return np.array(return_q)
+
     def _generate_thermal_balance_starting_vector(self):
         """
         Generate the starting guess vector from the value of the previous timestep
@@ -932,11 +1246,15 @@ class Network:
         ):
             branch._mass_flow_rate = mass
             branch._friction_factor = friction
+            return_branch = branch.return_branch
+            return_branch._mass_flow_rate = mass
+            return_branch._friction_factor = friction
         for pressure, node in zip(
-            new_nodes_pressures,
-            self._nodes_object_ordered_list,
+            new_nodes_pressures, self._nodes_object_ordered_list,
         ):
             node._node_pressure = pressure
+            return_node = node.return_node
+            return_node._node_pressure = -1 * pressure
 
     def _set_thermal_balance_results_vector(self, x, time_interval):
         """
@@ -956,17 +1274,88 @@ class Network:
         new_branches_temperatures = x[
             self._nodes_number : (self._branches_number + self._nodes_number)
         ]
-        for temp, node in zip(
-            new_nodes_temperatures,
-            self._nodes_object_ordered_list,
-        ):
+        for temp, node in zip(new_nodes_temperatures, self._nodes_object_ordered_list,):
             node._node_temperature = temp
         for temp, branch in zip(
-            new_branches_temperatures,
-            self._branches_object_ordered_list,
+            new_branches_temperatures, self._branches_object_ordered_list,
         ):
             branch._branch_temperature = temp
             branch.check_courant_stability(time_interval)
+
+    def _set_thermal_balance_results_vector_return(self, return_x, time_interval):
+        """
+        Set the new status variables to the nodes and branches objects.
+
+        Parameters
+        ----------
+        x : np.array
+            array with the results of the hydraulic [nodes_temperatures, branches_temperatures].
+
+        Returns
+        -------
+        None.
+
+        """
+        new_nodes_temperatures = return_x[: self._nodes_number]
+        new_branches_temperatures = return_x[
+            self._nodes_number : (self._branches_number + self._nodes_number)
+        ]
+        for temp, node in zip(new_nodes_temperatures, self._nodes_object_ordered_list,):
+            node.return_node._node_temperature = temp
+        for temp, branch in zip(
+            new_branches_temperatures, self._branches_object_ordered_list,
+        ):
+            branch.return_branch._branch_temperature = temp
+            branch.return_branch.check_courant_stability(time_interval)
+
+    def get_nodes_property_timestep(
+        self, nodes_list: list,
+    ):
+        """
+        This method loads the temperature boundary conditions of the nodes for a single timestep.
+        It can be used to simulate a changing boundary
+        Use °C as reference unit.
+
+        Parameters
+        ----------
+        nodes_boundary_conditions : dict
+            Dictionary with the following sintax (temperature of the supply nodes):
+                "1" : np.array([50,55,55,....]),
+                "3" : np.array([70,75,78,....]),
+                .
+                .
+                ..
+
+        number_of_timesteps : int
+            Number of timesteps to be considered.
+
+        Returns
+        -------
+        None.
+        """
+
+        temp = {}
+        return_temp = {}
+        mass_flow = {}
+
+        for node_idx in nodes_list:
+            node = self._nodes_object_dict[node_idx]
+            temp[node_idx] = (
+                node._node_temperature if not np.isnan(node._node_temperature) else 5.0
+            )
+            return_temp[node_idx] = (
+                node.return_node._node_temperature
+                if not np.isnan(node._node_temperature)
+                else 5.0
+            )
+            mass = 0
+            for sb_idx, sb in node.return_node._supply_branches_objects.items():
+                _mass = (
+                    sb._mass_flow_rate if not np.isnan(node._node_temperature) else 0.0
+                )
+                mass += _mass
+            mass_flow[node_idx] = mass
+        return temp, return_temp, mass_flow
 
     def save_results(self):
         self.save_hydraulic_results()
@@ -1019,28 +1408,44 @@ class Network:
     def save_nodes_temperatures(self):
         nodes_temperatures_header = ""
         matrix = []
+        matrix_return = []
         for node_k, node in self._nodes_object_dict.items():
             nodes_temperatures_header += node_k + ","
             matrix.append(node._node_temperature_array)
+            matrix_return.append(node.return_node._node_temperature_array)
         matrix = np.array(matrix).transpose()
+        matrix_return = np.array(matrix_return).transpose()
         with open(
             os.path.join(self.output_path, "NodesTemperatures.csv"), "w"
         ) as nodes:
             nodes.write(nodes_temperatures_header[:-1] + "\n")
             np.savetxt(nodes, matrix, delimiter=",", fmt="%.2f")
+        with open(
+            os.path.join(self.output_path, "NodesTemperaturesReturn.csv"), "w"
+        ) as nodes:
+            nodes.write(nodes_temperatures_header[:-1] + "\n")
+            np.savetxt(nodes, matrix_return, delimiter=",", fmt="%.2f")
 
     def save_branches_temperatures(self):
         branches_temperatures_header = ""
         matrix = []
+        matrix_return = []
         for branch_k, branch in self._branches_object_dict.items():
             branches_temperatures_header += branch_k + ","
             matrix.append(branch._branch_temperature_array)
+            matrix_return.append(branch.return_branch._branch_temperature_array)
         matrix = np.array(matrix).transpose()
+        matrix_return = np.array(matrix_return).transpose()
         with open(
             os.path.join(self.output_path, "BranchTemperatures.csv"), "w"
         ) as branches:
             branches.write(branches_temperatures_header[:-1] + "\n")
             np.savetxt(branches, matrix, delimiter=",", fmt="%.2f")
+        with open(
+            os.path.join(self.output_path, "BranchTemperaturesReturn.csv"), "w"
+        ) as branches:
+            branches.write(branches_temperatures_header[:-1] + "\n")
+            np.savetxt(branches, matrix_return, delimiter=",", fmt="%.2f")
 
     @classmethod
     def from_shapefiles(

@@ -37,6 +37,7 @@ class Node:
         y: float,
         starting_temperature=None,  # [°C]
         temperature_mode="Heating",
+        avoid_counter=False,
     ):
         """
 
@@ -81,9 +82,9 @@ class Node:
         self._demand_nodes_objects = {}
 
         Node._idx_list.append(self._idx)
-        self._unique_matrix_idx = Node._counter
-        Node._counter += 1
-
+        if not avoid_counter:
+            self._unique_matrix_idx = Node._counter
+            Node._counter += 1
         self._node_pressure_array = np.array([])
         self._node_pressure = self._starting_pressure  # [Pa]
         self._node_temperature_array = np.array([])
@@ -194,6 +195,7 @@ class Node:
             logging.warning(
                 f"Node {self._idx}: supply node with positive mass flow rate"
             )
+        value[np.abs(value) < 1e-3] = 0
         self.__boundary_mass_flow_rate = value
 
     @property

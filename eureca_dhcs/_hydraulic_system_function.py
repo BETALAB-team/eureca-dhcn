@@ -11,6 +11,9 @@ __maintainer__ = "Enrico Prataviera"
 
 import numpy as np
 import logging
+from eureca_dhcs.exceptions import (
+    HydraulicSystemNotSolved,
+)
 
 
 def darcy_equation(ff, reinolds, roughness, diameter):
@@ -33,7 +36,7 @@ def darcy_equation_der(ff, reinolds, roughness, diameter):
     )
 
 
-def hydraulic_balance_system_SIMPLE(x0, q, network, timestep):
+def hydraulic_balance_system_SIMPLE(x0, q, network, timestep, n_iter_max=50):
     # Boundary conditions
     # h: pressures, G_ext: massflow rates
     h = q[network._nodes_number :]
@@ -49,11 +52,11 @@ def hydraulic_balance_system_SIMPLE(x0, q, network, timestep):
     n_iter = 0
     while tol_P > 50 or tol_G > 0.01:
         n_iter += 1
-        if n_iter > 1000:
+        if n_iter > n_iter_max:
             logging.error(
                 f"Timestep {timestep}: maximum number of iteration for the solution of the hydraulic system reached"
             )
-            raise ValueError(
+            raise HydraulicSystemNotSolved(
                 f"Timestep {timestep}: maximum number of iteration for the solution of the hydraulic system reached"
             )
         # Iterative scheme

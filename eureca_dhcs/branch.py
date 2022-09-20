@@ -51,6 +51,7 @@ class Branch:
         nodes_objects_dict=None,
         soil_obj=None,
         temperature_mode="Heating",
+        avoid_counter=False,
     ):
         self._idx = idx
         self._supply_node_idx = supply_node
@@ -86,8 +87,9 @@ class Branch:
         else:
             self._roughness = roughness
         # set a unique integer for the incidence matrix
-        self._unique_matrix_idx = Branch._counter
-        Branch._counter += 1
+        if not avoid_counter:
+            self._unique_matrix_idx = Branch._counter
+            Branch._counter += 1
         # Other useful properties
         self._perimeter = self._pipe_ext_diameter * math.pi
         self._external_area = self._perimeter * self._pipe_len
